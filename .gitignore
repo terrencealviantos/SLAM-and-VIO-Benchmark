@@ -1,0 +1,32 @@
+# Large Dataset archives and raw data
+datasets/
+*.bag
+*.zip
+*.db3
+*.tar.gz
+*.tar
+
+# Build outputs & dependencies
+build/
+install/
+devel/
+log/
+**/build/
+**/install/
+**/devel/
+**/log/
+bin/
+lib/
+
+# Compiled object & binary files
+*.o
+*.so
+*.a
+test_opencv_yaml
+
+# Docker/Temporary build logs
+*.log
+
+# Python cache
+__pycache__/
+*.pyc
