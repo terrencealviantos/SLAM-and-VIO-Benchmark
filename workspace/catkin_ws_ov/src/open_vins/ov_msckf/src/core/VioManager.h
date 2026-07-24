@@ -31,6 +31,9 @@
 #include <mutex>
 #include <string>
 
+// Scoped timer for per-stage pipeline profiling
+#include "utils/timing.h"
+
 #include "VioManagerOptions.h"
 
 namespace ov_core {
@@ -151,7 +154,7 @@ protected:
    * @brief This will do the propagation and feature updates to the state
    * @param message Contains our timestamp, images, and camera ids
    */
-  void do_feature_propagate_update(const ov_core::CameraData &message);
+  void do_feature_propagate_update(const ov_core::CameraData &message, int64_t fid = -1);
 
   /**
    * @brief This function will try to initialize the state.
@@ -214,6 +217,9 @@ protected:
   // Timing statistic file and variables
   std::ofstream of_statistics;
   boost::posix_time::ptime rT1, rT2, rT3, rT4, rT5, rT6, rT7;
+
+  // Scoped-timer frame counter (incremented each call to track_image_and_update)
+  std::atomic<int64_t> frame_id_{0};
 
   // Track how much distance we have traveled
   double timelastupdate = -1;

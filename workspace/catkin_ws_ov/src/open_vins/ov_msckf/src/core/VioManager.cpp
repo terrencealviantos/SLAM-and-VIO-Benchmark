@@ -119,6 +119,14 @@ VioManager::VioManager(VioManagerOptions &params_) : thread_init_running(false),
       of_statistics << "slam update,slam delayed,";
     }
     of_statistics << "re-tri & marg,total" << std::endl;
+
+    // Also open the scoped-timer CSV (detailed per-stage timing with thread IDs)
+    std::string scoped_path = params.record_timing_filepath;
+    // replace extension / suffix to get sibling file ov_scoped_timing.csv
+    auto last_slash = scoped_path.find_last_of("/\\\\");
+    auto dir_part = (last_slash != std::string::npos) ? scoped_path.substr(0, last_slash + 1) : std::string();
+    ov_core::TimingLogger::instance().open(dir_part + "ov_scoped_timing.csv");
+    PRINT_INFO(YELLOW "[STATS]: Scoped timing CSV opened at: %sov_scoped_timing.csv\n" RESET, dir_part.c_str());
   }
 
   //===================================================================================
@@ -255,6 +263,12 @@ void VioManager::feed_measurement_simulation(double timestamp, const std::vector
 
 void VioManager::track_image_and_update(const ov_core::CameraData &message_const) {
 
+  // Increment frame counter and capture it for this frame's timers
+  int64_t fid = frame_id_.fetch_add(1, std::memory_order_relaxed);
+
+  // Total-frame scoped timer (covers everything until pose is published)
+  auto _t_total = ov_core::ScopedTimer("total_frame", fid);
+
   // Start timing
   rT1 = boost::posix_time::microsec_clock::local_time();
 
@@ -278,22 +292,21 @@ void VioManager::track_image_and_update(const ov_core::CameraData &message_const
   }
 
   // Perform our feature tracking!
-  trackFEATS->feed_new_camera(message);
-
-  // If the aruco tracker is available, the also pass to it
-  // NOTE: binocular tracking for aruco doesn't make sense as we by default have the ids
-  // NOTE: thus we just call the stereo tracking if we are doing binocular!
-  if (is_initialized_vio && trackARUCO != nullptr) {
-    trackARUCO->feed_new_camera(message);
+  {
+    auto _t = ov_core::ScopedTimer("feature_tracking", fid);
+    trackFEATS->feed_new_camera(message);
+    // If the aruco tracker is available, the also pass to it
+    if (is_initialized_vio && trackARUCO != nullptr) {
+      trackARUCO->feed_new_camera(message);
+    }
   }
   rT2 = boost::posix_time::microsec_clock::local_time();
 
   // Check if we should do zero-velocity, if so update the state with it
-  // Note that in the case that we only use in the beginning initialization phase
-  // If we have since moved, then we should never try to do a zero velocity update!
   if (is_initialized_vio && updaterZUPT != nullptr && (!params.zupt_only_at_beginning || !has_moved_since_zupt)) {
     // If the same state time, use the previous timestep decision
     if (state->_timestamp != message.timestamp) {
+      auto _t = ov_core::ScopedTimer("zupt_update", fid);
       did_zupt_update = updaterZUPT->try_update(state, message.timestamp);
     }
     if (did_zupt_update) {
@@ -306,7 +319,6 @@ void VioManager::track_image_and_update(const ov_core::CameraData &message_const
   }
 
   // If we do not have VIO initialization, then try to initialize
-  // TODO: Or if we are trying to reset the system, then do that here!
   if (!is_initialized_vio) {
     is_initialized_vio = try_to_initialize(message);
     if (!is_initialized_vio) {
@@ -317,10 +329,10 @@ void VioManager::track_image_and_update(const ov_core::CameraData &message_const
   }
 
   // Call on our propagate and update function
-  do_feature_propagate_update(message);
+  do_feature_propagate_update(message, fid);
 }
 
-void VioManager::do_feature_propagate_update(const ov_core::CameraData &message) {
+void VioManager::do_feature_propagate_update(const ov_core::CameraData &message, int64_t fid) {
 
   //===================================================================================
   // State propagation, and clone augmentation
@@ -335,10 +347,11 @@ void VioManager::do_feature_propagate_update(const ov_core::CameraData &message)
 
   // Propagate the state forward to the current update time
   // Also augment it with a new clone!
-  // NOTE: if the state is already at the given time (can happen in sim)
-  // NOTE: then no need to prop since we already are at the desired timestep
-  if (state->_timestamp != message.timestamp) {
-    propagator->propagate_and_clone(state, message.timestamp);
+  {
+    auto _t = ov_core::ScopedTimer("imu_propagation", fid);
+    if (state->_timestamp != message.timestamp) {
+      propagator->propagate_and_clone(state, message.timestamp);
+    }
   }
   rT3 = boost::posix_time::microsec_clock::local_time();
 
@@ -522,7 +535,10 @@ void VioManager::do_feature_propagate_update(const ov_core::CameraData &message)
   // NOTE: this should only really be used if you want to track a lot of features, or have limited computational resources
   if ((int)featsup_MSCKF.size() > state->_options.max_msckf_in_update)
     featsup_MSCKF.erase(featsup_MSCKF.begin(), featsup_MSCKF.end() - state->_options.max_msckf_in_update);
-  updaterMSCKF->update(state, featsup_MSCKF);
+  {
+    auto _t = ov_core::ScopedTimer("msckf_update", fid);
+    updaterMSCKF->update(state, featsup_MSCKF);
+  }
   propagator->invalidate_cache();
   rT4 = boost::posix_time::microsec_clock::local_time();
 
@@ -530,21 +546,27 @@ void VioManager::do_feature_propagate_update(const ov_core::CameraData &message)
   // NOTE: that we provide the option here to do a *sequential* update
   // NOTE: this will be a lot faster but won't be as accurate.
   std::vector<std::shared_ptr<Feature>> feats_slam_UPDATE_TEMP;
-  while (!feats_slam_UPDATE.empty()) {
-    // Get sub vector of the features we will update with
-    std::vector<std::shared_ptr<Feature>> featsup_TEMP;
-    featsup_TEMP.insert(featsup_TEMP.begin(), feats_slam_UPDATE.begin(),
-                        feats_slam_UPDATE.begin() + std::min(state->_options.max_slam_in_update, (int)feats_slam_UPDATE.size()));
-    feats_slam_UPDATE.erase(feats_slam_UPDATE.begin(),
-                            feats_slam_UPDATE.begin() + std::min(state->_options.max_slam_in_update, (int)feats_slam_UPDATE.size()));
-    // Do the update
-    updaterSLAM->update(state, featsup_TEMP);
-    feats_slam_UPDATE_TEMP.insert(feats_slam_UPDATE_TEMP.end(), featsup_TEMP.begin(), featsup_TEMP.end());
-    propagator->invalidate_cache();
+  {
+    auto _t = ov_core::ScopedTimer("slam_update", fid);
+    while (!feats_slam_UPDATE.empty()) {
+      // Get sub vector of the features we will update with
+      std::vector<std::shared_ptr<Feature>> featsup_TEMP;
+      featsup_TEMP.insert(featsup_TEMP.begin(), feats_slam_UPDATE.begin(),
+                          feats_slam_UPDATE.begin() + std::min(state->_options.max_slam_in_update, (int)feats_slam_UPDATE.size()));
+      feats_slam_UPDATE.erase(feats_slam_UPDATE.begin(),
+                              feats_slam_UPDATE.begin() + std::min(state->_options.max_slam_in_update, (int)feats_slam_UPDATE.size()));
+      // Do the update
+      updaterSLAM->update(state, featsup_TEMP);
+      feats_slam_UPDATE_TEMP.insert(feats_slam_UPDATE_TEMP.end(), featsup_TEMP.begin(), featsup_TEMP.end());
+      propagator->invalidate_cache();
+    }
   }
   feats_slam_UPDATE = feats_slam_UPDATE_TEMP;
   rT5 = boost::posix_time::microsec_clock::local_time();
-  updaterSLAM->delayed_init(state, feats_slam_DELAYED);
+  {
+    auto _t = ov_core::ScopedTimer("slam_delayed_init", fid);
+    updaterSLAM->delayed_init(state, feats_slam_DELAYED);
+  }
   rT6 = boost::posix_time::microsec_clock::local_time();
 
   //===================================================================================
@@ -553,7 +575,7 @@ void VioManager::do_feature_propagate_update(const ov_core::CameraData &message)
 
   // Re-triangulate all current tracks in the current frame
   if (message.sensor_ids.at(0) == 0) {
-
+    auto _t = ov_core::ScopedTimer("retriangulation", fid);
     // Re-triangulate features
     retriangulate_active_tracks(message);
 
@@ -576,24 +598,27 @@ void VioManager::do_feature_propagate_update(const ov_core::CameraData &message)
   // Remove features that where used for the update from our extractors at the last timestep
   // This allows for measurements to be used in the future if they failed to be used this time
   // Note we need to do this before we feed a new image, as we want all new measurements to NOT be deleted
-  trackFEATS->get_feature_database()->cleanup();
-  if (trackARUCO != nullptr) {
-    trackARUCO->get_feature_database()->cleanup();
-  }
-
-  // First do anchor change if we are about to lose an anchor pose
-  updaterSLAM->change_anchors(state);
-
-  // Cleanup any features older than the marginalization time
-  if ((int)state->_clones_IMU.size() > state->_options.max_clone_size) {
-    trackFEATS->get_feature_database()->cleanup_measurements(state->margtimestep());
+  {
+    auto _t = ov_core::ScopedTimer("marginalization", fid);
+    trackFEATS->get_feature_database()->cleanup();
     if (trackARUCO != nullptr) {
-      trackARUCO->get_feature_database()->cleanup_measurements(state->margtimestep());
+      trackARUCO->get_feature_database()->cleanup();
     }
-  }
 
-  // Finally marginalize the oldest clone if needed
-  StateHelper::marginalize_old_clone(state);
+    // First do anchor change if we are about to lose an anchor pose
+    updaterSLAM->change_anchors(state);
+
+    // Cleanup any features older than the marginalization time
+    if ((int)state->_clones_IMU.size() > state->_options.max_clone_size) {
+      trackFEATS->get_feature_database()->cleanup_measurements(state->margtimestep());
+      if (trackARUCO != nullptr) {
+        trackARUCO->get_feature_database()->cleanup_measurements(state->margtimestep());
+      }
+    }
+
+    // Finally marginalize the oldest clone if needed
+    StateHelper::marginalize_old_clone(state);
+  }
   rT7 = boost::posix_time::microsec_clock::local_time();
 
   //===================================================================================
