@@ -13,6 +13,8 @@
 #include "Tracking.h"
 
 #include "utility.hpp"
+#include "../timing.h"
+#include <atomic>
 
 using ImuMsg = sensor_msgs::msg::Imu;
 using ImageMsg = sensor_msgs::msg::Image;
@@ -51,6 +53,7 @@ private:
 
     bool bClahe_;
     cv::Ptr<cv::CLAHE> clahe_ = cv::createCLAHE(3.0, cv::Size(8, 8));
+    std::atomic<int64_t> frame_id_{0};
 };
 
 #endif

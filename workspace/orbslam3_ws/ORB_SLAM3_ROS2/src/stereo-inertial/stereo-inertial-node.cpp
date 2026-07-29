@@ -61,6 +61,10 @@ StereoInertialNode::StereoInertialNode(ORB_SLAM3::System *SLAM, const string &st
     subImgLeft_ = this->create_subscription<ImageMsg>("camera/left", 100, std::bind(&StereoInertialNode::GrabImageLeft, this, _1));
     subImgRight_ = this->create_subscription<ImageMsg>("camera/right", 100, std::bind(&StereoInertialNode::GrabImageRight, this, _1));
 
+    // Open ORB-SLAM3 timing CSV
+    orb_timing::TimingLogger::instance().open("/results/orbslam3_scoped_timing.csv");
+    std::cout << "[STATS] ORB-SLAM3 Scoped Timing CSV opened at /results/orbslam3_scoped_timing.csv" << std::endl;
+
     syncThread_ = new std::thread(&StereoInertialNode::SyncWithImu, this);
 }
 
@@ -162,7 +166,15 @@ void StereoInertialNode::SyncWithImu()
 
             if ((tImLeft - tImRight) > maxTimeDiff || (tImRight - tImLeft) > maxTimeDiff)
             {
-                std::cout << "big time difference" << std::endl;
+                if (tImLeft < tImRight) {
+                    bufMutexLeft_.lock();
+                    imgLeftBuf_.pop();
+                    bufMutexLeft_.unlock();
+                } else {
+                    bufMutexRight_.lock();
+                    imgRightBuf_.pop();
+                    bufMutexRight_.unlock();
+                }
                 continue;
             }
             if (tImLeft > Utility::StampToSec(imuBuf_.back()->header.stamp))
@@ -195,19 +207,28 @@ void StereoInertialNode::SyncWithImu()
             }
             bufMutex_.unlock();
 
-            if (bClahe_)
+            int64_t fid = frame_id_.fetch_add(1, std::memory_order_relaxed);
+            auto _t_total = orb_timing::ScopedTimer("total_frame", fid);
+
+            if (bClahe_ || doRectify_)
             {
-                clahe_->apply(imLeft, imLeft);
-                clahe_->apply(imRight, imRight);
+                auto _t_pre = orb_timing::ScopedTimer("image_preprocessing", fid);
+                if (bClahe_)
+                {
+                    clahe_->apply(imLeft, imLeft);
+                    clahe_->apply(imRight, imRight);
+                }
+                if (doRectify_)
+                {
+                    cv::remap(imLeft, imLeft, M1l_, M2l_, cv::INTER_LINEAR);
+                    cv::remap(imRight, imRight, M1r_, M2r_, cv::INTER_LINEAR);
+                }
             }
 
-            if (doRectify_)
             {
-                cv::remap(imLeft, imLeft, M1l_, M2l_, cv::INTER_LINEAR);
-                cv::remap(imRight, imRight, M1r_, M2r_, cv::INTER_LINEAR);
+                auto _t_track = orb_timing::ScopedTimer("track_stereo", fid);
+                SLAM_->TrackStereo(imLeft, imRight, tImLeft, vImuMeas);
             }
-
-            SLAM_->TrackStereo(imLeft, imRight, tImLeft, vImuMeas);
 
             std::chrono::milliseconds tSleep(1);
             std::this_thread::sleep_for(tSleep);
