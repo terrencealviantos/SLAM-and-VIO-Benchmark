@@ -2,7 +2,8 @@
 """
 Pipeline Timing Visualizer for SLAM / VIO Benchmarking
 ======================================================
-Reads scoped-timer CSVs and generates clean, presentation-ready Gantt charts.
+Generates clean, horizontal Gantt charts with modules/functions split as separate lanes,
+coloring bars by frame ID to demonstrate parallel/sequential thread pipelines.
 """
 
 import argparse
@@ -14,28 +15,11 @@ import numpy as np
 import pandas as pd
 from matplotlib.lines import Line2D
 
-STAGE_COLOURS = {
-    "feature_tracking":      "#DD8452",
-    "track_stereo":          "#DD8452",
-    "imu_propagation":       "#55A868",
-    "msckf_update":          "#C44E52",
-    "slam_update":           "#8172B2",
-    "slam_delayed_init":     "#937860",
-    "retriangulation":       "#DA8BC3",
-    "marginalization":       "#8C8C8C",
-    "zupt_update":           "#CCB974",
-    "image_preprocessing":   "#4C72B0",
-    "featureDetectionTime":  "#DD8452",
-    "featureTrackingTime":   "#55A868",
-    "monoRansacTime":        "#C44E52",
-    "stereoRansacTime":      "#8172B2",
-    "featureSelectionTime":  "#937860",
-}
-DEFAULT_COLOUR = "#64b5f6"
-
-def stage_colour(name: str) -> str:
-    return STAGE_COLOURS.get(name, DEFAULT_COLOUR)
-
+# Consistent modern discrete color palette for frames
+FRAME_COLOURS = [
+    "#4C72B0", "#55A868", "#C44E52", "#8172B2", "#CCB974",
+    "#64B5F6", "#E377C2", "#8C564B", "#9467BD", "#7F7F7F"
+]
 
 def load_csv(path: str) -> pd.DataFrame:
     df = pd.read_csv(path)
@@ -43,12 +27,10 @@ def load_csv(path: str) -> pd.DataFrame:
     assert {"frame_id", "module", "thread_id", "start_ns", "end_ns", "duration_ms"}.issubset(
         df.columns
     ), f"Missing columns. Got: {list(df.columns)}"
-    uid_map = {uid: f"Thread-{i+1}" for i, uid in enumerate(sorted(df["thread_id"].unique()))}
-    df["thread_label"] = df["thread_id"].map(uid_map)
     return df
 
-
-def plot_gantt_zoomed(df: pd.DataFrame, out_path: str, algo_name: str, dataset_name: str, start_frame: int = 100, num_frames: int = 8):
+def plot_gantt_horizontal_split(df: pd.DataFrame, out_path: str, algo_name: str, dataset_name: str, start_frame: int = 100, num_frames: int = 5):
+    # Retrieve consecutive frames starting at start_frame
     frames = [f for f in sorted(df["frame_id"].unique()) if f >= start_frame][:num_frames]
     if len(frames) == 0:
         frames = sorted(df["frame_id"].unique())[:num_frames]
@@ -58,79 +40,119 @@ def plot_gantt_zoomed(df: pd.DataFrame, out_path: str, algo_name: str, dataset_n
         print(f"[!] Warning: Zoomed range empty for {algo_name}, skipping")
         return
 
+    # Normalize time relative to the earliest start time in zoom window
     t0 = df_zoom["start_ns"].min()
     df_zoom["start_ms"] = (df_zoom["start_ns"] - t0) * 1e-6
     df_zoom["end_ms"]   = (df_zoom["end_ns"]   - t0) * 1e-6
 
-    frame_y = {f: i for i, f in enumerate(reversed(frames))}
-    lane_height = 0.55
+    # Determine unique modules and logical order
+    raw_modules = df_zoom["module"].unique()
+    if algo_name == "OpenVINS":
+        order = ["feature_tracking", "imu_propagation", "msckf_update", "slam_update", "marginalization"]
+        modules = [m for m in order if m in raw_modules] + [m for m in raw_modules if m not in order]
+    elif algo_name == "ORB-SLAM3":
+        order = ["image_preprocessing", "track_stereo"]
+        modules = [m for m in order if m in raw_modules] + [m for m in raw_modules if m not in order]
+    else:
+        modules = sorted(raw_modules)
 
-    fig, ax = plt.subplots(figsize=(16, 1.2 + 1.1 * len(frames)))
+    # Map modules to vertical y-coordinates
+    module_y = {mod: i for i, mod in enumerate(reversed(modules))}
+    lane_height = 0.5
+
+    # Create figure
+    fig, ax = plt.subplots(figsize=(14, 1.5 + 1.2 * len(modules)))
     fig.patch.set_facecolor("#1a1a2e")
     ax.set_facecolor("#16213e")
 
+    # Map each frame ID to a color
+    frame_colors = {f: FRAME_COLOURS[i % len(FRAME_COLOURS)] for i, f in enumerate(frames)}
+
     for _, row in df_zoom.iterrows():
-        y = frame_y[row["frame_id"]]
+        y = module_y[row["module"]]
         width = max(row["end_ms"] - row["start_ms"], 0.08)
+        color = frame_colors[row["frame_id"]]
+
         rect = mpatches.FancyBboxPatch(
             (row["start_ms"], y - lane_height / 2),
             width, lane_height,
             boxstyle="round,pad=0.03",
-            facecolor=stage_colour(row["module"]),
+            facecolor=color,
             edgecolor="#ffffff",
             linewidth=0.6,
             alpha=0.9,
         )
         ax.add_patch(rect)
-        if width > 1.0:
+
+        # Label inside or next to the bar
+        label_text = f"F{row['frame_id']} ({row['duration_ms']:.1f}ms)"
+        if width > 12.0:
             ax.text(
                 row["start_ms"] + width / 2,
                 y,
-                f"{row['module'].replace('_', ' ')}\n({row['duration_ms']:.1f}ms)",
+                label_text,
+                ha="center", va="center",
+                fontsize=8, color="white", fontweight="bold",
+                clip_on=True,
+            )
+        elif width > 2.0:
+            ax.text(
+                row["start_ms"] + width / 2,
+                y,
+                f"F{row['frame_id']}",
                 ha="center", va="center",
                 fontsize=8, color="white", fontweight="bold",
                 clip_on=True,
             )
 
-    ax.set_yticks([frame_y[f] for f in reversed(frames)])
-    ax.set_yticklabels([f"Frame {f}" for f in reversed(frames)], color="white", fontsize=11, fontweight="bold")
-    ax.set_ylim(-0.8, len(frames) - 0.2)
+    # Set axis properties
+    ax.set_yticks([module_y[m] for m in reversed(modules)])
+    ax.set_yticklabels([m.replace("_", " ").title() for m in reversed(modules)], color="white", fontsize=11, fontweight="bold")
+    ax.set_ylim(-0.8, len(modules) - 0.2)
     ax.set_xlim(-1, df_zoom["end_ms"].max() * 1.05)
-    ax.set_xlabel("Relative Time (ms)", color="white", fontsize=12, fontweight="bold")
+    ax.set_xlabel("Timeline (ms) from first frame start", color="white", fontsize=12, fontweight="bold")
+    
+    # Subtitle with hardware info
+    hardware_info = "Intel Core i7-7600U @ 2.80GHz (2 Cores, 4 Threads)"
     ax.set_title(
-        f"{algo_name} Pipeline Gantt Chart — {dataset_name} Dataset (Frames {frames[0]}–{frames[-1]})",
-        color="white", fontsize=15, fontweight="bold", pad=16,
+        f"{algo_name} Pipeline Timeline — {dataset_name.capitalize()} Dataset (Frames {frames[0]}–{frames[-1]})\nHardware: {hardware_info}",
+        color="white", fontsize=14, fontweight="bold", pad=16,
     )
+    
     ax.tick_params(colors="white")
     ax.spines[:].set_edgecolor("#555")
     ax.grid(axis="x", color="#ffffff22", linestyle="--", linewidth=0.5)
 
+    # Legend for frames
     legend_handles = [
-        Line2D([0], [0], color=stage_colour(s), linewidth=8, label=s.replace("_", " "))
-        for s in df_zoom["module"].unique()
+        Line2D([0], [0], color=frame_colors[f], linewidth=8, label=f"Frame {f}")
+        for f in frames
     ]
     ax.legend(handles=legend_handles, loc="upper right",
               facecolor="#0f3460", edgecolor="#555", labelcolor="white",
-              fontsize=9, ncol=2, framealpha=0.85)
+              fontsize=9, ncol=min(len(frames), 5), framealpha=0.85)
 
     plt.tight_layout()
     plt.savefig(out_path, dpi=150, facecolor=fig.get_facecolor())
     plt.close(fig)
     print(f"[✔] Saved {algo_name} Gantt chart → {out_path}")
 
-
 def main():
     parser = argparse.ArgumentParser(description="Timing visualizer")
     parser.add_argument("--csv", required=True)
     parser.add_argument("--out", required=True)
     parser.add_argument("--algo", default="OpenVINS")
-    parser.add_argument("--dataset", default="Suedhohe")
+    parser.add_argument("--dataset", default="suedhoehe")
     parser.add_argument("--start-frame", type=int, default=100)
+    parser.add_argument("--num-frames", type=int, default=5)
     args = parser.parse_args()
 
     os.makedirs(os.path.dirname(args.out), exist_ok=True)
     df = load_csv(args.csv)
-    plot_gantt_zoomed(df, args.out, args.algo, args.dataset, start_frame=args.start_frame)
+    plot_gantt_horizontal_split(
+        df, args.out, args.algo, args.dataset,
+        start_frame=args.start_frame, num_frames=args.num_frames
+    )
 
 if __name__ == "__main__":
     main()

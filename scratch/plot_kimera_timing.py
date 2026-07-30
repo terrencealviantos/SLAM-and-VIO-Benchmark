@@ -1,6 +1,9 @@
 #!/usr/bin/env python3
 """
 Kimera-VIO Pipeline Timing Visualizer for Suedhohe Dataset
+==========================================================
+Generates clean, horizontal Gantt charts with modules/functions split as separate lanes,
+coloring bars by frame ID to demonstrate parallel/sequential thread pipelines.
 """
 
 import os
@@ -12,18 +15,11 @@ import numpy as np
 import pandas as pd
 from matplotlib.lines import Line2D
 
-STAGE_COLOURS = {
-    "featureDetectionTime":  "#DD8452",
-    "featureTrackingTime":   "#55A868",
-    "monoRansacTime":        "#C44E52",
-    "stereoRansacTime":      "#8172B2",
-    "featureSelectionTime":  "#937860",
-}
-DEFAULT_COLOUR = "#64b5f6"
-
-def stage_colour(name: str) -> str:
-    return STAGE_COLOURS.get(name, DEFAULT_COLOUR)
-
+# Consistent modern discrete color palette for frames
+FRAME_COLOURS = [
+    "#4C72B0", "#55A868", "#C44E52", "#8172B2", "#CCB974",
+    "#64B5F6", "#E377C2", "#8C564B", "#9467BD", "#7F7F7F"
+]
 
 def load_kimera_csv(path: str) -> pd.DataFrame:
     df = pd.read_csv(path)
@@ -47,8 +43,8 @@ def load_kimera_csv(path: str) -> pd.DataFrame:
                     "module": col,
                     "thread_id": 1,
                     "thread_label": "Frontend Thread",
-                    "start_ms": t_curr + cum_offset,
-                    "end_ms": t_curr + cum_offset + dur,
+                    "start_ns": int((t_curr + cum_offset) * 1e6),
+                    "end_ns": int((t_curr + cum_offset + dur) * 1e6),
                     "duration_ms": dur
                 })
                 cum_offset += dur
@@ -56,89 +52,124 @@ def load_kimera_csv(path: str) -> pd.DataFrame:
     df_long = pd.DataFrame(rows)
     return df_long
 
-
-def plot_gantt_zoomed(df: pd.DataFrame, out_path: str, algo_name: str, dataset_name: str, start_frame: int = 50, num_frames: int = 8):
+def plot_gantt_horizontal_split(df: pd.DataFrame, out_path: str, algo_name: str, dataset_name: str, start_frame: int = 50, num_frames: int = 5):
+    # Retrieve consecutive frames starting at start_frame
     frames = [f for f in sorted(df["frame_id"].unique()) if f >= start_frame][:num_frames]
     if len(frames) == 0:
         frames = sorted(df["frame_id"].unique())[:num_frames]
 
     df_zoom = df[df["frame_id"].isin(frames)].copy()
     if df_zoom.empty:
+        print(f"[!] Warning: Zoomed range empty for {algo_name}, skipping")
         return
 
-    t0 = df_zoom["start_ms"].min()
-    df_zoom["rel_start_ms"] = df_zoom["start_ms"] - t0
-    df_zoom["rel_end_ms"]   = df_zoom["end_ms"] - t0
+    # Normalize time relative to the earliest start time in zoom window
+    t0 = df_zoom["start_ns"].min()
+    df_zoom["start_ms"] = (df_zoom["start_ns"] - t0) * 1e-6
+    df_zoom["end_ms"]   = (df_zoom["end_ns"]   - t0) * 1e-6
 
-    frame_y = {f: i for i, f in enumerate(reversed(frames))}
-    lane_height = 0.55
+    # Determine unique modules and logical order
+    raw_modules = df_zoom["module"].unique()
+    order = ["featureDetectionTime", "featureTrackingTime", "monoRansacTime", "stereoRansacTime", "featureSelectionTime"]
+    modules = [m for m in order if m in raw_modules] + [m for m in raw_modules if m not in order]
 
-    fig, ax = plt.subplots(figsize=(16, 1.2 + 1.1 * len(frames)))
+    # Map modules to vertical y-coordinates
+    module_y = {mod: i for i, mod in enumerate(reversed(modules))}
+    lane_height = 0.5
+
+    # Create figure
+    fig, ax = plt.subplots(figsize=(14, 1.5 + 1.2 * len(modules)))
     fig.patch.set_facecolor("#1a1a2e")
     ax.set_facecolor("#16213e")
 
+    # Map each frame ID to a color
+    frame_colors = {f: FRAME_COLOURS[i % len(FRAME_COLOURS)] for i, f in enumerate(frames)}
+
     for _, row in df_zoom.iterrows():
-        y = frame_y[row["frame_id"]]
-        width = max(row["rel_end_ms"] - row["rel_start_ms"], 0.08)
+        y = module_y[row["module"]]
+        width = max(row["end_ms"] - row["start_ms"], 0.08)
+        color = frame_colors[row["frame_id"]]
+
         rect = mpatches.FancyBboxPatch(
-            (row["rel_start_ms"], y - lane_height / 2),
+            (row["start_ms"], y - lane_height / 2),
             width, lane_height,
             boxstyle="round,pad=0.03",
-            facecolor=stage_colour(row["module"]),
+            facecolor=color,
             edgecolor="#ffffff",
             linewidth=0.6,
             alpha=0.9,
         )
         ax.add_patch(rect)
-        if width > 1.0:
+
+        # Label inside or next to the bar
+        label_text = f"F{row['frame_id']} ({row['duration_ms']:.1f}ms)"
+        if width > 12.0:
             ax.text(
-                row["rel_start_ms"] + width / 2,
+                row["start_ms"] + width / 2,
                 y,
-                f"{row['module'].replace('Time', '')}\n({row['duration_ms']:.1f}ms)",
+                label_text,
+                ha="center", va="center",
+                fontsize=8, color="white", fontweight="bold",
+                clip_on=True,
+            )
+        elif width > 2.0:
+            ax.text(
+                row["start_ms"] + width / 2,
+                y,
+                f"F{row['frame_id']}",
                 ha="center", va="center",
                 fontsize=8, color="white", fontweight="bold",
                 clip_on=True,
             )
 
-    ax.set_yticks([frame_y[f] for f in reversed(frames)])
-    ax.set_yticklabels([f"Frame {f}" for f in reversed(frames)], color="white", fontsize=11, fontweight="bold")
-    ax.set_ylim(-0.8, len(frames) - 0.2)
-    ax.set_xlim(-1, df_zoom["rel_end_ms"].max() * 1.05)
-    ax.set_xlabel("Relative Time (ms)", color="white", fontsize=12, fontweight="bold")
+    # Set axis properties
+    ax.set_yticks([module_y[m] for m in reversed(modules)])
+    ax.set_yticklabels([m.replace("Time", "").title() for m in reversed(modules)], color="white", fontsize=11, fontweight="bold")
+    ax.set_ylim(-0.8, len(modules) - 0.2)
+    ax.set_xlim(-1, df_zoom["end_ms"].max() * 1.05)
+    ax.set_xlabel("Timeline (ms) from first frame start", color="white", fontsize=12, fontweight="bold")
+    
+    # Subtitle with hardware info
+    hardware_info = "Intel Core i7-7600U @ 2.80GHz (2 Cores, 4 Threads)"
     ax.set_title(
-        f"{algo_name} Pipeline Gantt Chart — {dataset_name} Dataset (Frames {frames[0]}–{frames[-1]})",
-        color="white", fontsize=15, fontweight="bold", pad=16,
+        f"{algo_name} Pipeline Timeline — {dataset_name.capitalize()} Dataset (Frames {frames[0]}–{frames[-1]})\nHardware: {hardware_info}",
+        color="white", fontsize=14, fontweight="bold", pad=16,
     )
+    
     ax.tick_params(colors="white")
     ax.spines[:].set_edgecolor("#555")
     ax.grid(axis="x", color="#ffffff22", linestyle="--", linewidth=0.5)
 
+    # Legend for frames
     legend_handles = [
-        Line2D([0], [0], color=stage_colour(s), linewidth=8, label=s.replace("Time", ""))
-        for s in df_zoom["module"].unique()
+        Line2D([0], [0], color=frame_colors[f], linewidth=8, label=f"Frame {f}")
+        for f in frames
     ]
     ax.legend(handles=legend_handles, loc="upper right",
               facecolor="#0f3460", edgecolor="#555", labelcolor="white",
-              fontsize=9, ncol=2, framealpha=0.85)
+              fontsize=9, ncol=min(len(frames), 5), framealpha=0.85)
 
     plt.tight_layout()
     plt.savefig(out_path, dpi=150, facecolor=fig.get_facecolor())
     plt.close(fig)
     print(f"[✔] Saved {algo_name} Gantt chart → {out_path}")
 
-
 def main():
     parser = argparse.ArgumentParser(description="Kimera timing visualizer")
     parser.add_argument("--csv", required=True)
     parser.add_argument("--out", required=True)
     parser.add_argument("--algo", default="Kimera-VIO")
-    parser.add_argument("--dataset", default="Suedhohe")
+    parser.add_argument("--dataset", default="suedhoehe")
     parser.add_argument("--start-frame", type=int, default=50)
+    parser.add_argument("--num-frames", type=int, default=5)
     args = parser.parse_args()
 
     os.makedirs(os.path.dirname(args.out), exist_ok=True)
     df = load_kimera_csv(args.csv)
-    plot_gantt_zoomed(df, args.out, args.algo, args.dataset, start_frame=args.start_frame)
+    plot_gantt_horizontal_split(
+        df, args.out, args.algo, args.dataset,
+        start_frame=args.start_frame, num_frames=args.num_frames
+    )
 
 if __name__ == "__main__":
     main()
