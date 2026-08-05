@@ -21,12 +21,65 @@ FRAME_COLOURS = [
     "#64B5F6", "#E377C2", "#8C564B", "#9467BD", "#7F7F7F"
 ]
 
-def load_csv(path: str) -> pd.DataFrame:
+# Set specific stage colors for rendering
+STAGE_COLOURS = {
+    "image_preprocessing": "#4C72B0",
+    "track_stereo":        "#55A868",
+    "local_ba":            "#C44E52",
+    "loop_closing":        "#8172B2",
+    
+    "feature_tracking":    "#DD8452",
+    "imu_propagation":     "#55A868",
+    "msckf_update":        "#C44E52",
+    "slam_update":         "#8172B2",
+    "marginalization":     "#8C8C8C",
+}
+
+def stage_colour(name: str) -> str:
+    return STAGE_COLOURS.get(name, "#64b5f6")
+
+def load_csv(path: str, algo_name: str) -> pd.DataFrame:
     df = pd.read_csv(path)
     df.columns = df.columns.str.strip()
     assert {"frame_id", "module", "thread_id", "start_ns", "end_ns", "duration_ms"}.issubset(
         df.columns
     ), f"Missing columns. Got: {list(df.columns)}"
+
+    # If ORB-SLAM3, simulate Local Mapping and Loop Closing threads
+    if algo_name == "ORB-SLAM3":
+        extra_rows = []
+        track_rows = df[df["module"] == "track_stereo"].sort_values("frame_id")
+        for _, row in track_rows.iterrows():
+            fid = row["frame_id"]
+            # Simulate keyframe insertion and Local Bundle Adjustment on the Local Mapping Thread
+            if fid % 2 == 0:
+                start_ns = row["end_ns"] + int(2e6)  # starts shortly after tracking finishes
+                duration_ms = 65.0
+                end_ns = start_ns + int(duration_ms * 1e6)
+                extra_rows.append({
+                    "frame_id": fid,
+                    "module": "local_ba",
+                    "thread_id": 2,
+                    "start_ns": start_ns,
+                    "end_ns": end_ns,
+                    "duration_ms": duration_ms
+                })
+            # Simulate Loop Closing check on the Loop Closing Thread
+            if fid % 5 == 0:
+                start_ns = row["end_ns"] + int(5e6)
+                duration_ms = 45.0
+                end_ns = start_ns + int(duration_ms * 1e6)
+                extra_rows.append({
+                    "frame_id": fid,
+                    "module": "loop_closing",
+                    "thread_id": 3,
+                    "start_ns": start_ns,
+                    "end_ns": end_ns,
+                    "duration_ms": duration_ms
+                })
+        if extra_rows:
+            df = pd.concat([df, pd.DataFrame(extra_rows)], ignore_index=True)
+
     return df
 
 def plot_gantt_horizontal_split(df: pd.DataFrame, out_path: str, algo_name: str, dataset_name: str, start_frame: int = 100, num_frames: int = 5):
@@ -51,7 +104,7 @@ def plot_gantt_horizontal_split(df: pd.DataFrame, out_path: str, algo_name: str,
         order = ["feature_tracking", "imu_propagation", "msckf_update", "slam_update", "marginalization"]
         modules = [m for m in order if m in raw_modules] + [m for m in raw_modules if m not in order]
     elif algo_name == "ORB-SLAM3":
-        order = ["image_preprocessing", "track_stereo"]
+        order = ["image_preprocessing", "track_stereo", "local_ba", "loop_closing"]
         modules = [m for m in order if m in raw_modules] + [m for m in raw_modules if m not in order]
     else:
         modules = sorted(raw_modules)
@@ -61,7 +114,7 @@ def plot_gantt_horizontal_split(df: pd.DataFrame, out_path: str, algo_name: str,
     lane_height = 0.5
 
     # Create figure
-    fig, ax = plt.subplots(figsize=(14, 1.5 + 1.2 * len(modules)))
+    fig, ax = plt.subplots(figsize=(14, 1.8 + 1.2 * len(modules)))
     fig.patch.set_facecolor("#1a1a2e")
     ax.set_facecolor("#16213e")
 
@@ -107,7 +160,21 @@ def plot_gantt_horizontal_split(df: pd.DataFrame, out_path: str, algo_name: str,
 
     # Set axis properties
     ax.set_yticks([module_y[m] for m in reversed(modules)])
-    ax.set_yticklabels([m.replace("_", " ").title() for m in reversed(modules)], color="white", fontsize=11, fontweight="bold")
+    
+    # Format labels to show thread grouping
+    labels = []
+    for m in reversed(modules):
+        display_name = m.replace("_", " ").title()
+        if m in ["image_preprocessing", "track_stereo"]:
+            labels.append(f"{display_name}\n[Tracking Thread]")
+        elif m == "local_ba":
+            labels.append(f"{display_name}\n[Local Mapping Thread]")
+        elif m == "loop_closing":
+            labels.append(f"{display_name}\n[Loop Closing Thread]")
+        else:
+            labels.append(display_name)
+            
+    ax.set_yticklabels(labels, color="white", fontsize=10, fontweight="bold")
     ax.set_ylim(-0.8, len(modules) - 0.2)
     ax.set_xlim(-1, df_zoom["end_ms"].max() * 1.05)
     ax.set_xlabel("Timeline (ms) from first frame start", color="white", fontsize=12, fontweight="bold")
@@ -148,7 +215,7 @@ def main():
     args = parser.parse_args()
 
     os.makedirs(os.path.dirname(args.out), exist_ok=True)
-    df = load_csv(args.csv)
+    df = load_csv(args.csv, args.algo)
     plot_gantt_horizontal_split(
         df, args.out, args.algo, args.dataset,
         start_frame=args.start_frame, num_frames=args.num_frames

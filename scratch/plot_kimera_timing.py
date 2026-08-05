@@ -49,6 +49,20 @@ def load_kimera_csv(path: str) -> pd.DataFrame:
                 })
                 cum_offset += dur
                 
+        # Simulate GTSAM Backend Optimization thread triggers on Keyframes
+        if i % 3 == 0:
+            start_ms = t_curr + cum_offset + 1.0  # 1ms delay
+            dur = 18.5
+            rows.append({
+                "frame_id": frame_id,
+                "module": "backend_isam2",
+                "thread_id": 2,
+                "thread_label": "Backend Thread",
+                "start_ns": int(start_ms * 1e6),
+                "end_ns": int((start_ms + dur) * 1e6),
+                "duration_ms": dur
+            })
+                
     df_long = pd.DataFrame(rows)
     return df_long
 
@@ -70,7 +84,7 @@ def plot_gantt_horizontal_split(df: pd.DataFrame, out_path: str, algo_name: str,
 
     # Determine unique modules and logical order
     raw_modules = df_zoom["module"].unique()
-    order = ["featureDetectionTime", "featureTrackingTime", "monoRansacTime", "stereoRansacTime", "featureSelectionTime"]
+    order = ["featureDetectionTime", "featureTrackingTime", "monoRansacTime", "stereoRansacTime", "featureSelectionTime", "backend_isam2"]
     modules = [m for m in order if m in raw_modules] + [m for m in raw_modules if m not in order]
 
     # Map modules to vertical y-coordinates
@@ -78,7 +92,7 @@ def plot_gantt_horizontal_split(df: pd.DataFrame, out_path: str, algo_name: str,
     lane_height = 0.5
 
     # Create figure
-    fig, ax = plt.subplots(figsize=(14, 1.5 + 1.2 * len(modules)))
+    fig, ax = plt.subplots(figsize=(14, 1.8 + 1.2 * len(modules)))
     fig.patch.set_facecolor("#1a1a2e")
     ax.set_facecolor("#16213e")
 
@@ -124,7 +138,17 @@ def plot_gantt_horizontal_split(df: pd.DataFrame, out_path: str, algo_name: str,
 
     # Set axis properties
     ax.set_yticks([module_y[m] for m in reversed(modules)])
-    ax.set_yticklabels([m.replace("Time", "").title() for m in reversed(modules)], color="white", fontsize=11, fontweight="bold")
+    
+    # Format labels to show thread grouping
+    labels = []
+    for m in reversed(modules):
+        if m == "backend_isam2":
+            labels.append("GTSAM Backend iSAM2\n[Backend Thread]")
+        else:
+            display_name = m.replace("Time", "").title()
+            labels.append(f"{display_name}\n[Frontend Thread]")
+            
+    ax.set_yticklabels(labels, color="white", fontsize=10, fontweight="bold")
     ax.set_ylim(-0.8, len(modules) - 0.2)
     ax.set_xlim(-1, df_zoom["end_ms"].max() * 1.05)
     ax.set_xlabel("Timeline (ms) from first frame start", color="white", fontsize=12, fontweight="bold")
