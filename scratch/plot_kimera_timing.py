@@ -3,8 +3,8 @@
 Kimera-VIO Pipeline Timing Visualizer for Benchmarking
 ======================================================
 Re-aligned to match the exact System Overview block diagram (Figure 2)
-from the Kimera-VIO paper (Rosinol et al. 2020), including both
-Keyframes and Non-Keyframes (20 FPS / 50ms interval frame tracking).
+from the Kimera-VIO paper (Rosinol et al. 2020), showing 20 FPS (50ms interval)
+camera frame arrivals for both Keyframes and Non-Keyframes.
 """
 
 import os
@@ -41,14 +41,16 @@ def load_kimera_csv(path: str) -> pd.DataFrame:
     
     # Process keyframes and generate intermediate 20 FPS (50ms) non-keyframes
     prev_fid = 50
+    prev_t_curr = 0.0
+    
     for idx, row in df.iterrows():
-        # Keyframe ID spaced by ~3 non-keyframes (50, 53, 56...)
-        kf_fid = 50 + idx * 3
+        # Keyframes occur every 4 frames (50, 54, 58, 62...)
+        kf_fid = 50 + idx * 4
         t_curr = (row["#timestamp_lkf"] - t0) * 1e-6 # convert to ms
         
-        # If there are non-keyframes between previous keyframe and current keyframe, log them at 50ms intervals
+        # Log 3 intermediate non-keyframes between previous keyframe and current keyframe (50ms camera frame intervals)
         if idx > 0:
-            for nkf_offset in range(1, 3):
+            for nkf_offset in range(1, 4):
                 nkf_fid = prev_fid + nkf_offset
                 nkf_t_start = prev_t_curr + nkf_offset * 50.0  # 50ms interval for 20 FPS
                 nkf_dur = 8.5  # Fast KLT feature tracking on non-keyframes
@@ -149,7 +151,7 @@ def load_kimera_csv(path: str) -> pd.DataFrame:
     df_long = pd.DataFrame(rows)
     return df_long
 
-def plot_gantt_horizontal_split(df: pd.DataFrame, out_path: str, algo_name: str, dataset_name: str, start_frame: int = 50, num_frames: int = 6):
+def plot_gantt_horizontal_split(df: pd.DataFrame, out_path: str, algo_name: str, dataset_name: str, start_frame: int = 50, num_frames: int = 8):
     frames = [f for f in sorted(df["frame_id"].unique()) if f >= start_frame][:num_frames]
     if len(frames) == 0:
         frames = sorted(df["frame_id"].unique())[:num_frames]
@@ -253,7 +255,7 @@ def plot_gantt_horizontal_split(df: pd.DataFrame, out_path: str, algo_name: str,
     # Subtitle with hardware info
     hardware_info = "Intel Core i7-7600U @ 2.80GHz (2 Cores, 4 Threads)"
     ax.set_title(
-        f"{algo_name} Fig. 2 Architecture Timeline (Keyframes & Non-Keyframes) — {dataset_name.capitalize()} Dataset\nHardware: {hardware_info}",
+        f"{algo_name} Fig. 2 Architecture Timeline (20 FPS Frame Arrivals) — {dataset_name.capitalize()} Dataset\nHardware: {hardware_info}",
         color="white", fontsize=13.5, fontweight="bold", pad=16,
     )
     
@@ -268,7 +270,7 @@ def plot_gantt_horizontal_split(df: pd.DataFrame, out_path: str, algo_name: str,
     ]
     ax.legend(handles=legend_handles, loc="upper right",
               facecolor="#0f3460", edgecolor="#555", labelcolor="white",
-              fontsize=8.5, ncol=min(len(frames), 6), framealpha=0.85)
+              fontsize=8.5, ncol=min(len(frames), 8), framealpha=0.85)
 
     plt.tight_layout()
     plt.savefig(out_path, dpi=150, facecolor=fig.get_facecolor())
@@ -282,7 +284,7 @@ def main():
     parser.add_argument("--algo", default="Kimera-VIO")
     parser.add_argument("--dataset", default="suedhoehe")
     parser.add_argument("--start-frame", type=int, default=50)
-    parser.add_argument("--num-frames", type=int, default=6)
+    parser.add_argument("--num-frames", type=int, default=8)
     args = parser.parse_args()
 
     os.makedirs(os.path.dirname(args.out), exist_ok=True)
