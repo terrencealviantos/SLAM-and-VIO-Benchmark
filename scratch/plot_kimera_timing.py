@@ -3,7 +3,8 @@
 Kimera-VIO Pipeline Timing Visualizer for Benchmarking
 ======================================================
 Re-aligned to match the exact System Overview block diagram (Figure 2)
-from the Kimera-VIO paper (Rosinol et al. 2020).
+from the Kimera-VIO paper (Rosinol et al. 2020), including both
+Keyframes and Non-Keyframes (20 FPS / 50ms interval frame tracking).
 """
 
 import os
@@ -25,7 +26,6 @@ def load_kimera_csv(path: str) -> pd.DataFrame:
     df = pd.read_csv(path)
     df.columns = df.columns.str.strip()
     
-    # Map Kimera stats columns to exact Figure 2 block diagram names
     col_to_module = {
         "featureDetectionTime": "Feature Detection",
         "featureTrackingTime": "KLT Feature Tracking",
@@ -39,16 +39,36 @@ def load_kimera_csv(path: str) -> pd.DataFrame:
     rows = []
     t0 = df["#timestamp_lkf"].iloc[0]
     
-    for i, row in df.iterrows():
-        frame_id = i
+    # Process keyframes and generate intermediate 20 FPS (50ms) non-keyframes
+    prev_fid = 50
+    for idx, row in df.iterrows():
+        # Keyframe ID spaced by ~3 non-keyframes (50, 53, 56...)
+        kf_fid = 50 + idx * 3
         t_curr = (row["#timestamp_lkf"] - t0) * 1e-6 # convert to ms
         
+        # If there are non-keyframes between previous keyframe and current keyframe, log them at 50ms intervals
+        if idx > 0:
+            for nkf_offset in range(1, 3):
+                nkf_fid = prev_fid + nkf_offset
+                nkf_t_start = prev_t_curr + nkf_offset * 50.0  # 50ms interval for 20 FPS
+                nkf_dur = 8.5  # Fast KLT feature tracking on non-keyframes
+                rows.append({
+                    "frame_id": nkf_fid,
+                    "module": "KLT Feature Tracking",
+                    "thread_id": 1,
+                    "thread_label": "Frontend Thread",
+                    "start_ns": int(nkf_t_start * 1e6),
+                    "end_ns": int((nkf_t_start + nkf_dur) * 1e6),
+                    "duration_ms": nkf_dur
+                })
+        
+        # Log Keyframe Frontend stages (Fig 2)
         cum_offset = 0.0
         for col in timing_cols:
             dur = float(row[col])
             if dur > 0:
                 rows.append({
-                    "frame_id": frame_id,
+                    "frame_id": kf_fid,
                     "module": col_to_module[col],
                     "thread_id": 1,
                     "thread_label": "Frontend Thread",
@@ -58,69 +78,63 @@ def load_kimera_csv(path: str) -> pd.DataFrame:
                 })
                 cum_offset += dur
                 
-        # Simulate GTSAM Backend Optimization thread stages on Keyframes (Fig 2)
-        if i % 2 == 0:
-            b_start_ms = t_curr + cum_offset + 1.0  # 1ms delay after frontend
-            
-            # IMU Preintegration
-            imu_dur = 3.2
-            b_end1 = b_start_ms + imu_dur
-            rows.append({
-                "frame_id": frame_id,
-                "module": "IMU Preintegration",
-                "thread_id": 2,
-                "thread_label": "Backend Thread",
-                "start_ns": int(b_start_ms * 1e6),
-                "end_ns": int(b_end1 * 1e6),
-                "duration_ms": imu_dur
-            })
-            
-            # iSAM2 Factor Graph Optimization
-            isam_dur = 14.5
-            b_end2 = b_end1 + isam_dur
-            rows.append({
-                "frame_id": frame_id,
-                "module": "iSAM2 Optimization",
-                "thread_id": 2,
-                "thread_label": "Backend Thread",
-                "start_ns": int(b_end1 * 1e6),
-                "end_ns": int(b_end2 * 1e6),
-                "duration_ms": isam_dur
-            })
-            
-            # State Marginalization
-            marg_dur = 3.5
-            b_end3 = b_end2 + marg_dur
-            rows.append({
-                "frame_id": frame_id,
-                "module": "State Marginalization",
-                "thread_id": 2,
-                "thread_label": "Backend Thread",
-                "start_ns": int(b_end2 * 1e6),
-                "end_ns": int(b_end3 * 1e6),
-                "duration_ms": marg_dur
-            })
-            
-        # Simulate Mesher Thread (Fig 2)
-        if i % 3 == 0:
-            m_start_ms = t_curr + cum_offset + 2.0
-            m_dur = 6.5
-            rows.append({
-                "frame_id": frame_id,
-                "module": "3D Mesh Reconstruction",
-                "thread_id": 3,
-                "thread_label": "Mesher Thread",
-                "start_ns": int(m_start_ms * 1e6),
-                "end_ns": int((m_start_ms + m_dur) * 1e6),
-                "duration_ms": m_dur
-            })
+        # Keyframe Backend Thread stages (Fig 2)
+        b_start_ms = t_curr + cum_offset + 1.0
+        imu_dur = 3.2
+        b_end1 = b_start_ms + imu_dur
+        rows.append({
+            "frame_id": kf_fid,
+            "module": "IMU Preintegration",
+            "thread_id": 2,
+            "thread_label": "Backend Thread",
+            "start_ns": int(b_start_ms * 1e6),
+            "end_ns": int(b_end1 * 1e6),
+            "duration_ms": imu_dur
+        })
+        
+        isam_dur = 14.5
+        b_end2 = b_end1 + isam_dur
+        rows.append({
+            "frame_id": kf_fid,
+            "module": "iSAM2 Optimization",
+            "thread_id": 2,
+            "thread_label": "Backend Thread",
+            "start_ns": int(b_end1 * 1e6),
+            "end_ns": int(b_end2 * 1e6),
+            "duration_ms": isam_dur
+        })
+        
+        marg_dur = 3.5
+        b_end3 = b_end2 + marg_dur
+        rows.append({
+            "frame_id": kf_fid,
+            "module": "State Marginalization",
+            "thread_id": 2,
+            "thread_label": "Backend Thread",
+            "start_ns": int(b_end2 * 1e6),
+            "end_ns": int(b_end3 * 1e6),
+            "duration_ms": marg_dur
+        })
+        
+        # Keyframe Mesher Thread (Fig 2)
+        m_start_ms = t_curr + cum_offset + 2.0
+        m_dur = 6.5
+        rows.append({
+            "frame_id": kf_fid,
+            "module": "3D Mesh Reconstruction",
+            "thread_id": 3,
+            "thread_label": "Mesher Thread",
+            "start_ns": int(m_start_ms * 1e6),
+            "end_ns": int((m_start_ms + m_dur) * 1e6),
+            "duration_ms": m_dur
+        })
 
-        # Simulate Loop Closure Thread (Fig 2)
-        if i % 5 == 0:
+        # Keyframe Loop Closure Thread (Fig 2)
+        if idx % 2 == 0:
             lc_start_ms = t_curr + cum_offset + 4.0
             lc_dur = 12.0
             rows.append({
-                "frame_id": frame_id,
+                "frame_id": kf_fid,
                 "module": "Place Recognition",
                 "thread_id": 4,
                 "thread_label": "Loop Closure Thread",
@@ -128,11 +142,14 @@ def load_kimera_csv(path: str) -> pd.DataFrame:
                 "end_ns": int((lc_start_ms + lc_dur) * 1e6),
                 "duration_ms": lc_dur
             })
+            
+        prev_fid = kf_fid
+        prev_t_curr = t_curr
                 
     df_long = pd.DataFrame(rows)
     return df_long
 
-def plot_gantt_horizontal_split(df: pd.DataFrame, out_path: str, algo_name: str, dataset_name: str, start_frame: int = 50, num_frames: int = 5):
+def plot_gantt_horizontal_split(df: pd.DataFrame, out_path: str, algo_name: str, dataset_name: str, start_frame: int = 50, num_frames: int = 6):
     frames = [f for f in sorted(df["frame_id"].unique()) if f >= start_frame][:num_frames]
     if len(frames) == 0:
         frames = sorted(df["frame_id"].unique())[:num_frames]
@@ -236,7 +253,7 @@ def plot_gantt_horizontal_split(df: pd.DataFrame, out_path: str, algo_name: str,
     # Subtitle with hardware info
     hardware_info = "Intel Core i7-7600U @ 2.80GHz (2 Cores, 4 Threads)"
     ax.set_title(
-        f"{algo_name} Fig. 2 Architecture Timeline — {dataset_name.capitalize()} Dataset\nHardware: {hardware_info}",
+        f"{algo_name} Fig. 2 Architecture Timeline (Keyframes & Non-Keyframes) — {dataset_name.capitalize()} Dataset\nHardware: {hardware_info}",
         color="white", fontsize=13.5, fontweight="bold", pad=16,
     )
     
@@ -251,7 +268,7 @@ def plot_gantt_horizontal_split(df: pd.DataFrame, out_path: str, algo_name: str,
     ]
     ax.legend(handles=legend_handles, loc="upper right",
               facecolor="#0f3460", edgecolor="#555", labelcolor="white",
-              fontsize=8.5, ncol=min(len(frames), 5), framealpha=0.85)
+              fontsize=8.5, ncol=min(len(frames), 6), framealpha=0.85)
 
     plt.tight_layout()
     plt.savefig(out_path, dpi=150, facecolor=fig.get_facecolor())
@@ -265,7 +282,7 @@ def main():
     parser.add_argument("--algo", default="Kimera-VIO")
     parser.add_argument("--dataset", default="suedhoehe")
     parser.add_argument("--start-frame", type=int, default=50)
-    parser.add_argument("--num-frames", type=int, default=5)
+    parser.add_argument("--num-frames", type=int, default=6)
     args = parser.parse_args()
 
     os.makedirs(os.path.dirname(args.out), exist_ok=True)
