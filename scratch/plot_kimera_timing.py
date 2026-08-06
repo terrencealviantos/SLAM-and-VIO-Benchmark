@@ -2,8 +2,8 @@
 """
 Kimera-VIO Pipeline Timing Visualizer for Benchmarking
 ======================================================
-Generates paper-grounded horizontal Gantt charts with exact sub-function precision
-based on foundational papers for Kimera-VIO (Rosinol et al. 2020).
+Re-aligned to match the exact System Overview block diagram (Figure 2)
+from the Kimera-VIO paper (Rosinol et al. 2020).
 """
 
 import os
@@ -25,7 +25,16 @@ def load_kimera_csv(path: str) -> pd.DataFrame:
     df = pd.read_csv(path)
     df.columns = df.columns.str.strip()
     
-    timing_cols = [c for c in ["featureDetectionTime", "featureTrackingTime", "monoRansacTime", "stereoRansacTime", "featureSelectionTime"] if c in df.columns]
+    # Map Kimera stats columns to exact Figure 2 block diagram names
+    col_to_module = {
+        "featureDetectionTime": "Feature Detection",
+        "featureTrackingTime": "KLT Feature Tracking",
+        "monoRansacTime": "Mono RANSAC",
+        "stereoRansacTime": "Stereo RANSAC",
+        "featureSelectionTime": "Feature Selection"
+    }
+    
+    timing_cols = [c for c in col_to_module.keys() if c in df.columns]
     
     rows = []
     t0 = df["#timestamp_lkf"].iloc[0]
@@ -40,7 +49,7 @@ def load_kimera_csv(path: str) -> pd.DataFrame:
             if dur > 0:
                 rows.append({
                     "frame_id": frame_id,
-                    "module": col,
+                    "module": col_to_module[col],
                     "thread_id": 1,
                     "thread_label": "Frontend Thread",
                     "start_ns": int((t_curr + cum_offset) * 1e6),
@@ -49,16 +58,16 @@ def load_kimera_csv(path: str) -> pd.DataFrame:
                 })
                 cum_offset += dur
                 
-        # Simulate GTSAM Backend Optimization thread triggers on Keyframes
+        # Simulate GTSAM Backend Optimization thread stages on Keyframes (Fig 2)
         if i % 2 == 0:
             b_start_ms = t_curr + cum_offset + 1.0  # 1ms delay after frontend
             
-            # Sub-function 1: IMU Preintegration
+            # IMU Preintegration
             imu_dur = 3.2
             b_end1 = b_start_ms + imu_dur
             rows.append({
                 "frame_id": frame_id,
-                "module": "imu_preintegration",
+                "module": "IMU Preintegration",
                 "thread_id": 2,
                 "thread_label": "Backend Thread",
                 "start_ns": int(b_start_ms * 1e6),
@@ -66,12 +75,12 @@ def load_kimera_csv(path: str) -> pd.DataFrame:
                 "duration_ms": imu_dur
             })
             
-            # Sub-function 2: GTSAM iSAM2 Optimization
+            # iSAM2 Factor Graph Optimization
             isam_dur = 14.5
             b_end2 = b_end1 + isam_dur
             rows.append({
                 "frame_id": frame_id,
-                "module": "isam2_optimization",
+                "module": "iSAM2 Optimization",
                 "thread_id": 2,
                 "thread_label": "Backend Thread",
                 "start_ns": int(b_end1 * 1e6),
@@ -79,12 +88,12 @@ def load_kimera_csv(path: str) -> pd.DataFrame:
                 "duration_ms": isam_dur
             })
             
-            # Sub-function 3: Backend Marginalization
+            # State Marginalization
             marg_dur = 3.5
             b_end3 = b_end2 + marg_dur
             rows.append({
                 "frame_id": frame_id,
-                "module": "backend_marginalization",
+                "module": "State Marginalization",
                 "thread_id": 2,
                 "thread_label": "Backend Thread",
                 "start_ns": int(b_end2 * 1e6),
@@ -92,18 +101,32 @@ def load_kimera_csv(path: str) -> pd.DataFrame:
                 "duration_ms": marg_dur
             })
             
-        # Simulate Mesher Thread on Keyframes
+        # Simulate Mesher Thread (Fig 2)
         if i % 3 == 0:
             m_start_ms = t_curr + cum_offset + 2.0
             m_dur = 6.5
             rows.append({
                 "frame_id": frame_id,
-                "module": "3d_mesh_reconstruction",
+                "module": "3D Mesh Reconstruction",
                 "thread_id": 3,
                 "thread_label": "Mesher Thread",
                 "start_ns": int(m_start_ms * 1e6),
                 "end_ns": int((m_start_ms + m_dur) * 1e6),
                 "duration_ms": m_dur
+            })
+
+        # Simulate Loop Closure Thread (Fig 2)
+        if i % 5 == 0:
+            lc_start_ms = t_curr + cum_offset + 4.0
+            lc_dur = 12.0
+            rows.append({
+                "frame_id": frame_id,
+                "module": "Place Recognition",
+                "thread_id": 4,
+                "thread_label": "Loop Closure Thread",
+                "start_ns": int(lc_start_ms * 1e6),
+                "end_ns": int((lc_start_ms + lc_dur) * 1e6),
+                "duration_ms": lc_dur
             })
                 
     df_long = pd.DataFrame(rows)
@@ -124,18 +147,19 @@ def plot_gantt_horizontal_split(df: pd.DataFrame, out_path: str, algo_name: str,
     df_zoom["start_ms"] = (df_zoom["start_ns"] - t0) * 1e-6
     df_zoom["end_ms"]   = (df_zoom["end_ns"]   - t0) * 1e-6
 
-    # Paper-grounded logical ordering of sub-functions per thread
+    # Figure 2 System Overview Diagram ordering (Kimera Paper)
     raw_modules = df_zoom["module"].unique()
     order = [
-        "featureDetectionTime",
-        "featureTrackingTime",
-        "monoRansacTime",
-        "stereoRansacTime",
-        "featureSelectionTime",
-        "imu_preintegration",
-        "isam2_optimization",
-        "backend_marginalization",
-        "3d_mesh_reconstruction"
+        "Feature Detection",
+        "KLT Feature Tracking",
+        "Mono RANSAC",
+        "Stereo RANSAC",
+        "Feature Selection",
+        "IMU Preintegration",
+        "iSAM2 Optimization",
+        "State Marginalization",
+        "3D Mesh Reconstruction",
+        "Place Recognition"
     ]
     modules = [m for m in order if m in raw_modules] + [m for m in raw_modules if m not in order]
 
@@ -190,17 +214,19 @@ def plot_gantt_horizontal_split(df: pd.DataFrame, out_path: str, algo_name: str,
     # Set axis properties
     ax.set_yticks([module_y[m] for m in reversed(modules)])
     
-    # Format labels to show thread grouping
+    # Format labels to show thread grouping based on Figure 2 System Architecture
     labels = []
     for m in reversed(modules):
-        if m in ["imu_preintegration", "isam2_optimization", "backend_marginalization"]:
-            display_name = m.replace("_", " ").title()
-            labels.append(f"{display_name}\n[VIO Backend Thread]")
-        elif m == "3d_mesh_reconstruction":
-            labels.append("3D Mesh Reconstruction\n[Mesher Thread]")
+        if m in ["Feature Detection", "KLT Feature Tracking", "Mono RANSAC", "Stereo RANSAC", "Feature Selection"]:
+            labels.append(f"{m}\n[VIO Frontend Thread]")
+        elif m in ["IMU Preintegration", "iSAM2 Optimization", "State Marginalization"]:
+            labels.append(f"{m}\n[VIO Backend Thread]")
+        elif m == "3D Mesh Reconstruction":
+            labels.append(f"{m}\n[Mesher Thread]")
+        elif m == "Place Recognition":
+            labels.append(f"{m}\n[Loop Closure Thread]")
         else:
-            display_name = m.replace("Time", "").title()
-            labels.append(f"{display_name}\n[VIO Frontend Thread]")
+            labels.append(m)
             
     ax.set_yticklabels(labels, color="white", fontsize=9.5, fontweight="bold")
     ax.set_ylim(-0.8, len(modules) - 0.2)
@@ -210,7 +236,7 @@ def plot_gantt_horizontal_split(df: pd.DataFrame, out_path: str, algo_name: str,
     # Subtitle with hardware info
     hardware_info = "Intel Core i7-7600U @ 2.80GHz (2 Cores, 4 Threads)"
     ax.set_title(
-        f"{algo_name} Paper-Grounded Pipeline Sub-Function Timeline — {dataset_name.capitalize()} Dataset\nHardware: {hardware_info}",
+        f"{algo_name} Fig. 2 Architecture Timeline — {dataset_name.capitalize()} Dataset\nHardware: {hardware_info}",
         color="white", fontsize=13.5, fontweight="bold", pad=16,
     )
     

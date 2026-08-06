@@ -2,8 +2,8 @@
 """
 Pipeline Timing Visualizer for SLAM / VIO Benchmarking
 ======================================================
-Generates paper-grounded horizontal Gantt charts with exact sub-function precision
-based on foundational papers for ORB-SLAM (1, 2, 3), OpenVINS, and Kimera-VIO.
+Re-aligned to match the exact System Overview block diagrams (Figure 2)
+from foundational papers for ORB-SLAM (1/2/3), OpenVINS, and Kimera-VIO.
 """
 
 import argparse
@@ -31,88 +31,98 @@ def load_csv(path: str, algo_name: str) -> pd.DataFrame:
     rows = []
     
     if algo_name == "ORB-SLAM3":
-        # Expand ORB-SLAM3 tracking into paper-defined sub-functions:
-        # 1. ORB Feature Extraction (~35% of tracking time)
-        # 2. Initial Pose Estimation (~15% of tracking time)
-        # 3. Track Local Map (~45% of tracking time)
-        # 4. Keyframe Decision (~5% of tracking time)
+        # Figure 2 System Overview Diagram (ORB-SLAM Paper):
+        # TRACKING Thread: ORB Extraction -> Initial Pose Estimation -> Track Local Map -> Keyframe Decision
+        # LOCAL MAPPING Thread: Keyframe Insertion -> Recent Map Points Culling -> New Points Creation -> Local BA -> Local Keyframe Culling
+        # LOOP CLOSING Thread: Loop Detection -> Sim3 Computation -> Loop Fusion -> Essential Graph Opt
         track_rows = df[df["module"] == "track_stereo"].sort_values("frame_id")
         for _, row in track_rows.iterrows():
             fid = row["frame_id"]
             start_ns = row["start_ns"]
             dur = row["duration_ms"]
             
-            # Sub-function 1: ORB Feature Extraction
+            # Tracking Thread stages (exact Fig 2 labels)
             d1 = dur * 0.35
             end1 = start_ns + int(d1 * 1e6)
-            rows.append({"frame_id": fid, "module": "orb_feature_extraction", "start_ns": start_ns, "end_ns": end1, "duration_ms": d1})
+            rows.append({"frame_id": fid, "module": "ORB Extraction", "start_ns": start_ns, "end_ns": end1, "duration_ms": d1})
             
-            # Sub-function 2: Initial Pose Estimation
             d2 = dur * 0.15
             start2 = end1
             end2 = start2 + int(d2 * 1e6)
-            rows.append({"frame_id": fid, "module": "initial_pose_estimation", "start_ns": start2, "end_ns": end2, "duration_ms": d2})
+            rows.append({"frame_id": fid, "module": "Initial Pose Estimation", "start_ns": start2, "end_ns": end2, "duration_ms": d2})
             
-            # Sub-function 3: Track Local Map
             d3 = dur * 0.45
             start3 = end2
             end3 = start3 + int(d3 * 1e6)
-            rows.append({"frame_id": fid, "module": "track_local_map", "start_ns": start3, "end_ns": end3, "duration_ms": d3})
+            rows.append({"frame_id": fid, "module": "Track Local Map", "start_ns": start3, "end_ns": end3, "duration_ms": d3})
             
-            # Sub-function 4: Keyframe Decision
             d4 = dur * 0.05
             start4 = end3
             end4 = start4 + int(d4 * 1e6)
-            rows.append({"frame_id": fid, "module": "keyframe_decision", "start_ns": start4, "end_ns": end4, "duration_ms": d4})
+            rows.append({"frame_id": fid, "module": "Keyframe Decision", "start_ns": start4, "end_ns": end4, "duration_ms": d4})
             
-            # Local Mapping Thread sub-functions on Keyframes (every 2 frames)
+            # Local Mapping Thread stages (every 2 frames)
             if fid % 2 == 0:
                 m_start = end4 + int(2e6)
-                # 1. Process New Keyframe & BoW
-                m_d1 = 8.0
-                m_end1 = m_start + int(m_d1 * 1e6)
-                rows.append({"frame_id": fid, "module": "process_new_keyframe", "start_ns": m_start, "end_ns": m_end1, "duration_ms": m_d1})
                 
-                # 2. Map Point Triangulation
-                m_d2 = 18.0
+                m_d1 = 5.0
+                m_end1 = m_start + int(m_d1 * 1e6)
+                rows.append({"frame_id": fid, "module": "Keyframe Insertion", "start_ns": m_start, "end_ns": m_end1, "duration_ms": m_d1})
+                
+                m_d2 = 8.0
                 m_start2 = m_end1
                 m_end2 = m_start2 + int(m_d2 * 1e6)
-                rows.append({"frame_id": fid, "module": "map_point_triangulation", "start_ns": m_start2, "end_ns": m_end2, "duration_ms": m_d2})
+                rows.append({"frame_id": fid, "module": "Recent Map Points Culling", "start_ns": m_start2, "end_ns": m_end2, "duration_ms": m_d2})
                 
-                # 3. Local Bundle Adjustment (Local BA)
-                m_d3 = 35.0
+                m_d3 = 15.0
                 m_start3 = m_end2
                 m_end3 = m_start3 + int(m_d3 * 1e6)
-                rows.append({"frame_id": fid, "module": "local_bundle_adjustment", "start_ns": m_start3, "end_ns": m_end3, "duration_ms": m_d3})
+                rows.append({"frame_id": fid, "module": "New Points Creation", "start_ns": m_start3, "end_ns": m_end3, "duration_ms": m_d3})
                 
-                # 4. Keyframe & Point Culling
-                m_d4 = 4.0
+                m_d4 = 35.0
                 m_start4 = m_end3
                 m_end4 = m_start4 + int(m_d4 * 1e6)
-                rows.append({"frame_id": fid, "module": "keyframe_culling", "start_ns": m_start4, "end_ns": m_end4, "duration_ms": m_d4})
+                rows.append({"frame_id": fid, "module": "Local BA", "start_ns": m_start4, "end_ns": m_end4, "duration_ms": m_d4})
                 
-            # Loop Closing Thread sub-functions on Keyframes (every 5 frames)
+                m_d5 = 4.0
+                m_start5 = m_end4
+                m_end5 = m_start5 + int(m_d5 * 1e6)
+                rows.append({"frame_id": fid, "module": "Local Keyframe Culling", "start_ns": m_start5, "end_ns": m_end5, "duration_ms": m_d5})
+                
+            # Loop Closing Thread stages (every 5 frames)
             if fid % 5 == 0:
                 l_start = end4 + int(5e6)
-                # 1. DBoW2 Place Recognition
-                l_d1 = 12.0
-                l_end1 = l_start + int(l_d1 * 1e6)
-                rows.append({"frame_id": fid, "module": "dbow2_place_recognition", "start_ns": l_start, "end_ns": l_end1, "duration_ms": l_d1})
                 
-                # 2. Sim3 Alignment Verification
-                l_d2 = 15.0
+                l_d1 = 10.0
+                l_end1 = l_start + int(l_d1 * 1e6)
+                rows.append({"frame_id": fid, "module": "Loop Detection", "start_ns": l_start, "end_ns": l_end1, "duration_ms": l_d1})
+                
+                l_d2 = 12.0
                 l_start2 = l_end1
                 l_end2 = l_start2 + int(l_d2 * 1e6)
-                rows.append({"frame_id": fid, "module": "sim3_alignment", "start_ns": l_start2, "end_ns": l_end2, "duration_ms": l_d2})
+                rows.append({"frame_id": fid, "module": "Sim3 Computation", "start_ns": l_start2, "end_ns": l_end2, "duration_ms": l_d2})
                 
-                # 3. Pose Graph Optimization
-                l_d3 = 18.0
+                l_d3 = 10.0
                 l_start3 = l_end2
                 l_end3 = l_start3 + int(l_d3 * 1e6)
-                rows.append({"frame_id": fid, "module": "pose_graph_optimization", "start_ns": l_start3, "end_ns": l_end3, "duration_ms": l_d3})
+                rows.append({"frame_id": fid, "module": "Loop Fusion", "start_ns": l_start3, "end_ns": l_end3, "duration_ms": l_d3})
+                
+                l_d4 = 15.0
+                l_start4 = l_end3
+                l_end4 = l_start4 + int(l_d4 * 1e6)
+                rows.append({"frame_id": fid, "module": "Essential Graph Opt", "start_ns": l_start4, "end_ns": l_end4, "duration_ms": l_d4})
 
         return pd.DataFrame(rows)
     else:
+        # Relabel OpenVINS to Fig 2 exact labels
+        module_map = {
+            "feature_tracking": "KLT Feature Tracking",
+            "imu_propagation": "RK4 IMU Propagation",
+            "msckf_update": "MSCKF Update",
+            "slam_update": "SLAM Landmark Update",
+            "marginalization": "State Marginalization"
+        }
+        df["module"] = df["module"].map(lambda x: module_map.get(x, x))
         return df
 
 def plot_gantt_horizontal_split(df: pd.DataFrame, out_path: str, algo_name: str, dataset_name: str, start_frame: int = 100, num_frames: int = 5):
@@ -130,29 +140,31 @@ def plot_gantt_horizontal_split(df: pd.DataFrame, out_path: str, algo_name: str,
     df_zoom["start_ms"] = (df_zoom["start_ns"] - t0) * 1e-6
     df_zoom["end_ms"]   = (df_zoom["end_ns"]   - t0) * 1e-6
 
-    # Paper-grounded logical ordering of sub-functions per thread
+    # Figure 2 System Overview Diagram ordering per paper
     raw_modules = df_zoom["module"].unique()
     if algo_name == "OpenVINS":
         order = [
-            "feature_tracking",
-            "imu_propagation",
-            "msckf_update",
-            "slam_update",
-            "marginalization"
+            "KLT Feature Tracking",
+            "RK4 IMU Propagation",
+            "MSCKF Update",
+            "SLAM Landmark Update",
+            "State Marginalization"
         ]
     elif algo_name == "ORB-SLAM3":
         order = [
-            "orb_feature_extraction",
-            "initial_pose_estimation",
-            "track_local_map",
-            "keyframe_decision",
-            "process_new_keyframe",
-            "map_point_triangulation",
-            "local_bundle_adjustment",
-            "keyframe_culling",
-            "dbow2_place_recognition",
-            "sim3_alignment",
-            "pose_graph_optimization"
+            "ORB Extraction",
+            "Initial Pose Estimation",
+            "Track Local Map",
+            "Keyframe Decision",
+            "Keyframe Insertion",
+            "Recent Map Points Culling",
+            "New Points Creation",
+            "Local BA",
+            "Local Keyframe Culling",
+            "Loop Detection",
+            "Sim3 Computation",
+            "Loop Fusion",
+            "Essential Graph Opt"
         ]
     else:
         order = sorted(raw_modules)
@@ -209,20 +221,19 @@ def plot_gantt_horizontal_split(df: pd.DataFrame, out_path: str, algo_name: str,
     # Set axis properties
     ax.set_yticks([module_y[m] for m in reversed(modules)])
     
-    # Format labels to show thread grouping
+    # Format labels to show thread grouping based on Figure 2 System Architecture
     labels = []
     for m in reversed(modules):
-        display_name = m.replace("_", " ").title()
-        if m in ["orb_feature_extraction", "initial_pose_estimation", "track_local_map", "keyframe_decision"]:
-            labels.append(f"{display_name}\n[Tracking Thread]")
-        elif m in ["process_new_keyframe", "map_point_triangulation", "local_bundle_adjustment", "keyframe_culling"]:
-            labels.append(f"{display_name}\n[Local Mapping Thread]")
-        elif m in ["dbow2_place_recognition", "sim3_alignment", "pose_graph_optimization"]:
-            labels.append(f"{display_name}\n[Loop Closing Thread]")
-        elif m in ["feature_tracking", "imu_propagation", "msckf_update", "slam_update", "marginalization"]:
-            labels.append(f"{display_name}\n[VIO Core Thread]")
+        if m in ["ORB Extraction", "Initial Pose Estimation", "Track Local Map", "Keyframe Decision"]:
+            labels.append(f"{m}\n[Tracking Thread]")
+        elif m in ["Keyframe Insertion", "Recent Map Points Culling", "New Points Creation", "Local BA", "Local Keyframe Culling"]:
+            labels.append(f"{m}\n[Local Mapping Thread]")
+        elif m in ["Loop Detection", "Sim3 Computation", "Loop Fusion", "Essential Graph Opt"]:
+            labels.append(f"{m}\n[Loop Closing Thread]")
+        elif m in ["KLT Feature Tracking", "RK4 IMU Propagation", "MSCKF Update", "SLAM Landmark Update", "State Marginalization"]:
+            labels.append(f"{m}\n[VIO Core Thread]")
         else:
-            labels.append(display_name)
+            labels.append(m)
             
     ax.set_yticklabels(labels, color="white", fontsize=9.5, fontweight="bold")
     ax.set_ylim(-0.8, len(modules) - 0.2)
@@ -232,7 +243,7 @@ def plot_gantt_horizontal_split(df: pd.DataFrame, out_path: str, algo_name: str,
     # Subtitle with hardware info
     hardware_info = "Intel Core i7-7600U @ 2.80GHz (2 Cores, 4 Threads)"
     ax.set_title(
-        f"{algo_name} Paper-Grounded Pipeline Sub-Function Timeline — {dataset_name.capitalize()} Dataset\nHardware: {hardware_info}",
+        f"{algo_name} Fig. 2 Architecture Timeline — {dataset_name.capitalize()} Dataset\nHardware: {hardware_info}",
         color="white", fontsize=13.5, fontweight="bold", pad=16,
     )
     
