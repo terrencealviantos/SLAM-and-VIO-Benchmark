@@ -3,8 +3,8 @@
 Kimera-VIO Pipeline Timing Visualizer for Benchmarking
 ======================================================
 Re-aligned to match the exact System Overview block diagram (Figure 2)
-from the Kimera-VIO paper (Rosinol et al. 2020), showing 20 FPS (50ms interval)
-camera frame arrivals for both Keyframes and Non-Keyframes.
+from the Kimera-VIO paper (Rosinol et al. 2020), demonstrating
+UNTHROTTLED offline back-to-back frame processing (0 ms sensor wait time).
 """
 
 import os
@@ -22,7 +22,7 @@ FRAME_COLOURS = [
     "#64B5F6", "#E377C2", "#8C564B", "#9467BD", "#7F7F7F"
 ]
 
-def load_kimera_csv(path: str) -> pd.DataFrame:
+def load_kimera_csv(path: str, unthrottled: bool = True) -> pd.DataFrame:
     df = pd.read_csv(path)
     df.columns = df.columns.str.strip()
     
@@ -37,35 +37,33 @@ def load_kimera_csv(path: str) -> pd.DataFrame:
     timing_cols = [c for c in col_to_module.keys() if c in df.columns]
     
     rows = []
-    t0 = df["#timestamp_lkf"].iloc[0]
     
-    # Process keyframes and generate intermediate 20 FPS (50ms) non-keyframes
+    # In unthrottled mode, processing time advances continuously (0 ms idle sensor wait time)
+    curr_time_ms = 0.0
     prev_fid = 50
-    prev_t_curr = 0.0
     
     for idx, row in df.iterrows():
-        # Keyframes occur every 4 frames (50, 54, 58, 62...)
         kf_fid = 50 + idx * 4
-        t_curr = (row["#timestamp_lkf"] - t0) * 1e-6 # convert to ms
         
-        # Log 3 intermediate non-keyframes between previous keyframe and current keyframe (50ms camera frame intervals)
-        if idx > 0:
+        # In unthrottled mode, intermediate non-keyframes are grabbed and tracked immediately as fast as CPU permits
+        if idx > 0 and unthrottled:
             for nkf_offset in range(1, 4):
                 nkf_fid = prev_fid + nkf_offset
-                nkf_t_start = prev_t_curr + nkf_offset * 50.0  # 50ms interval for 20 FPS
                 nkf_dur = 8.5  # Fast KLT feature tracking on non-keyframes
+                
                 rows.append({
                     "frame_id": nkf_fid,
                     "module": "KLT Feature Tracking",
                     "thread_id": 1,
                     "thread_label": "Frontend Thread",
-                    "start_ns": int(nkf_t_start * 1e6),
-                    "end_ns": int((nkf_t_start + nkf_dur) * 1e6),
+                    "start_ns": int(curr_time_ms * 1e6),
+                    "end_ns": int((curr_time_ms + nkf_dur) * 1e6),
                     "duration_ms": nkf_dur
                 })
+                curr_time_ms += nkf_dur  # Next frame grabbed IMMEDIATELY (0 ms wait time)
         
         # Log Keyframe Frontend stages (Fig 2)
-        cum_offset = 0.0
+        kf_start_ms = curr_time_ms
         for col in timing_cols:
             dur = float(row[col])
             if dur > 0:
@@ -74,14 +72,14 @@ def load_kimera_csv(path: str) -> pd.DataFrame:
                     "module": col_to_module[col],
                     "thread_id": 1,
                     "thread_label": "Frontend Thread",
-                    "start_ns": int((t_curr + cum_offset) * 1e6),
-                    "end_ns": int((t_curr + cum_offset + dur) * 1e6),
+                    "start_ns": int(curr_time_ms * 1e6),
+                    "end_ns": int((curr_time_ms + dur) * 1e6),
                     "duration_ms": dur
                 })
-                cum_offset += dur
+                curr_time_ms += dur
                 
-        # Keyframe Backend Thread stages (Fig 2)
-        b_start_ms = t_curr + cum_offset + 1.0
+        # Keyframe Backend Thread stages (Fig 2) running concurrently
+        b_start_ms = kf_start_ms + (curr_time_ms - kf_start_ms) + 0.5
         imu_dur = 3.2
         b_end1 = b_start_ms + imu_dur
         rows.append({
@@ -119,7 +117,7 @@ def load_kimera_csv(path: str) -> pd.DataFrame:
         })
         
         # Keyframe Mesher Thread (Fig 2)
-        m_start_ms = t_curr + cum_offset + 2.0
+        m_start_ms = kf_start_ms + (curr_time_ms - kf_start_ms) + 1.0
         m_dur = 6.5
         rows.append({
             "frame_id": kf_fid,
@@ -133,7 +131,7 @@ def load_kimera_csv(path: str) -> pd.DataFrame:
 
         # Keyframe Loop Closure Thread (Fig 2)
         if idx % 2 == 0:
-            lc_start_ms = t_curr + cum_offset + 4.0
+            lc_start_ms = kf_start_ms + (curr_time_ms - kf_start_ms) + 2.0
             lc_dur = 12.0
             rows.append({
                 "frame_id": kf_fid,
@@ -146,7 +144,6 @@ def load_kimera_csv(path: str) -> pd.DataFrame:
             })
             
         prev_fid = kf_fid
-        prev_t_curr = t_curr
                 
     df_long = pd.DataFrame(rows)
     return df_long
@@ -211,7 +208,7 @@ def plot_gantt_horizontal_split(df: pd.DataFrame, out_path: str, algo_name: str,
 
         # Label inside or next to the bar
         label_text = f"F{row['frame_id']} ({row['duration_ms']:.1f}ms)"
-        if width > 10.0:
+        if width > 8.0:
             ax.text(
                 row["start_ms"] + width / 2,
                 y,
@@ -250,12 +247,12 @@ def plot_gantt_horizontal_split(df: pd.DataFrame, out_path: str, algo_name: str,
     ax.set_yticklabels(labels, color="white", fontsize=9.5, fontweight="bold")
     ax.set_ylim(-0.8, len(modules) - 0.2)
     ax.set_xlim(-1, df_zoom["end_ms"].max() * 1.05)
-    ax.set_xlabel("Timeline (ms) from first frame start", color="white", fontsize=11, fontweight="bold")
+    ax.set_xlabel("Timeline (ms) - Unthrottled Back-to-Back Processing", color="white", fontsize=11, fontweight="bold")
     
     # Subtitle with hardware info
     hardware_info = "Intel Core i7-7600U @ 2.80GHz (2 Cores, 4 Threads)"
     ax.set_title(
-        f"{algo_name} Fig. 2 Architecture Timeline (20 FPS Frame Arrivals) — {dataset_name.capitalize()} Dataset\nHardware: {hardware_info}",
+        f"{algo_name} Fig. 2 Timeline (Unthrottled 0 ms Wait Time) — {dataset_name.capitalize()} Dataset\nHardware: {hardware_info}",
         color="white", fontsize=13.5, fontweight="bold", pad=16,
     )
     
@@ -288,7 +285,7 @@ def main():
     args = parser.parse_args()
 
     os.makedirs(os.path.dirname(args.out), exist_ok=True)
-    df = load_kimera_csv(args.csv)
+    df = load_kimera_csv(args.csv, unthrottled=True)
     plot_gantt_horizontal_split(
         df, args.out, args.algo, args.dataset,
         start_frame=args.start_frame, num_frames=args.num_frames
