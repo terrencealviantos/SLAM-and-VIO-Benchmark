@@ -3,8 +3,8 @@
 Kimera-VIO Pipeline Timing Visualizer for Benchmarking
 ======================================================
 Supports two modes for supervisor comparison:
-1. Keyframes Only (Raw CSV Logged View)
-2. Keyframes + Non-Keyframes (Unthrottled Continuous Frame View)
+1. Keyframes Only (Raw CSV Logged View with True Frame Indexing F50, F54, F58...)
+2. Keyframes + Non-Keyframes (Unthrottled Continuous Frame View F50, F51, F52, F53, F54...)
 """
 
 import os
@@ -42,14 +42,11 @@ def load_kimera_csv(path: str, include_non_keyframes: bool = True) -> pd.DataFra
     prev_fid = 50
     
     for idx, row in df.iterrows():
-        if include_non_keyframes:
-            kf_fid = 50 + idx * 4
-        else:
-            kf_fid = 50 + idx  # Consecutive keyframe indexing
-            
+        # True absolute frame indexing for Keyframes (F50, F54, F58, F62...)
+        kf_fid = 50 + idx * 4
         t_curr = (row["#timestamp_lkf"] - t0) * 1e-6 # convert to ms
         
-        # If including non-keyframes, insert 3 intermediate frames between keyframes
+        # If including non-keyframes, insert 3 intermediate non-keyframes between keyframes
         if idx > 0 and include_non_keyframes:
             for nkf_offset in range(1, 4):
                 nkf_fid = prev_fid + nkf_offset
@@ -293,7 +290,7 @@ def main():
 
     os.makedirs(os.path.dirname(args.out), exist_ok=True)
     
-    # Generate With Non-Keyframes
+    # Generate With Non-Keyframes (F50, F51, F52, F53, F54...)
     df_with = load_kimera_csv(args.csv, include_non_keyframes=True)
     plot_gantt_horizontal_split(
         df_with, args.out, args.algo, args.dataset,
@@ -301,7 +298,7 @@ def main():
         title_suffix="With Non-Keyframes / Unthrottled Stream"
     )
     
-    # Generate Keyframes Only
+    # Generate Keyframes Only with True Frame Indexing (F50, F54, F58, F62, F66)
     out_dir = os.path.dirname(args.out)
     out_kf_only = os.path.join(out_dir, "2_kimera_keyframes_only_gantt_chart.png")
     df_kf = load_kimera_csv(args.csv, include_non_keyframes=False)
