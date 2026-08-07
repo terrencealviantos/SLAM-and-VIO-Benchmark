@@ -38,10 +38,10 @@ def load_kimera_csv(path: str) -> pd.DataFrame:
     
     rows = []
     curr_time_ms = 0.0
-    prev_fid = 10
+    prev_fid = 50
     
     for idx, row in df.iterrows():
-        kf_fid = 10 + idx * 4
+        kf_fid = 50 + idx * 4
         
         # In unthrottled mode, intermediate non-keyframes are grabbed and tracked immediately (0 ms wait time)
         if idx > 0:
@@ -146,7 +146,7 @@ def load_kimera_csv(path: str) -> pd.DataFrame:
     df_long = pd.DataFrame(rows)
     return df_long
 
-def plot_gantt_horizontal_split(df: pd.DataFrame, out_path: str, algo_name: str, dataset_name: str, start_frame: int = 10, num_frames: int = 8):
+def plot_gantt_horizontal_split(df: pd.DataFrame, out_path: str, algo_name: str, dataset_name: str, start_frame: int = 50, num_frames: int = 5):
     frames = [f for f in sorted(df["frame_id"].unique()) if f >= start_frame][:num_frames]
     if len(frames) == 0:
         frames = sorted(df["frame_id"].unique())[:num_frames]
@@ -265,7 +265,7 @@ def plot_gantt_horizontal_split(df: pd.DataFrame, out_path: str, algo_name: str,
     ]
     ax.legend(handles=legend_handles, loc="upper right",
               facecolor="#0f3460", edgecolor="#555", labelcolor="white",
-              fontsize=8.5, ncol=min(len(frames), 8), framealpha=0.85)
+              fontsize=8.5, ncol=min(len(frames), 5), framealpha=0.85)
 
     plt.tight_layout()
     plt.savefig(out_path, dpi=150, facecolor=fig.get_facecolor())
@@ -278,8 +278,8 @@ def main():
     parser.add_argument("--out", required=True)
     parser.add_argument("--algo", default="Kimera-VIO")
     parser.add_argument("--dataset", default="suedhoehe")
-    parser.add_argument("--start-frame", type=int, default=10)
-    parser.add_argument("--num-frames", type=int, default=8)
+    parser.add_argument("--start-frame", type=int, default=50)
+    parser.add_argument("--num-frames", type=int, default=5)
     args = parser.parse_args()
 
     os.makedirs(os.path.dirname(args.out), exist_ok=True)
