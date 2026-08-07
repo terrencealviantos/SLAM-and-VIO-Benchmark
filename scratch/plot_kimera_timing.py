@@ -2,9 +2,9 @@
 """
 Kimera-VIO Pipeline Timing Visualizer for Benchmarking
 ======================================================
-Re-aligned to match the exact System Overview block diagram (Figure 2)
-from the Kimera-VIO paper (Rosinol et al. 2020), demonstrating
-UNTHROTTLED offline back-to-back frame processing (0 ms sensor wait time).
+Supports two modes for supervisor comparison:
+1. Keyframes Only (Raw CSV Logged View)
+2. Keyframes + Non-Keyframes (Unthrottled Continuous Frame View)
 """
 
 import os
@@ -22,7 +22,7 @@ FRAME_COLOURS = [
     "#64B5F6", "#E377C2", "#8C564B", "#9467BD", "#7F7F7F"
 ]
 
-def load_kimera_csv(path: str) -> pd.DataFrame:
+def load_kimera_csv(path: str, include_non_keyframes: bool = True) -> pd.DataFrame:
     df = pd.read_csv(path)
     df.columns = df.columns.str.strip()
     
@@ -38,13 +38,19 @@ def load_kimera_csv(path: str) -> pd.DataFrame:
     
     rows = []
     curr_time_ms = 0.0
+    t0 = df["#timestamp_lkf"].iloc[0]
     prev_fid = 50
     
     for idx, row in df.iterrows():
-        kf_fid = 50 + idx * 4
+        if include_non_keyframes:
+            kf_fid = 50 + idx * 4
+        else:
+            kf_fid = 50 + idx  # Consecutive keyframe indexing
+            
+        t_curr = (row["#timestamp_lkf"] - t0) * 1e-6 # convert to ms
         
-        # In unthrottled mode, intermediate non-keyframes are grabbed and tracked immediately (0 ms wait time)
-        if idx > 0:
+        # If including non-keyframes, insert 3 intermediate frames between keyframes
+        if idx > 0 and include_non_keyframes:
             for nkf_offset in range(1, 4):
                 nkf_fid = prev_fid + nkf_offset
                 nkf_dur = 8.5  # Fast KLT feature tracking on non-keyframes
@@ -58,7 +64,9 @@ def load_kimera_csv(path: str) -> pd.DataFrame:
                     "end_ns": int((curr_time_ms + nkf_dur) * 1e6),
                     "duration_ms": nkf_dur
                 })
-                curr_time_ms += nkf_dur  # Next frame grabbed IMMEDIATELY (0 ms wait time)
+                curr_time_ms += nkf_dur
+        elif not include_non_keyframes:
+            curr_time_ms = t_curr
         
         # Log Keyframe Frontend stages (Fig 2)
         kf_start_ms = curr_time_ms
@@ -146,7 +154,7 @@ def load_kimera_csv(path: str) -> pd.DataFrame:
     df_long = pd.DataFrame(rows)
     return df_long
 
-def plot_gantt_horizontal_split(df: pd.DataFrame, out_path: str, algo_name: str, dataset_name: str, start_frame: int = 50, num_frames: int = 5):
+def plot_gantt_horizontal_split(df: pd.DataFrame, out_path: str, algo_name: str, dataset_name: str, start_frame: int = 50, num_frames: int = 5, title_suffix: str = ""):
     frames = [f for f in sorted(df["frame_id"].unique()) if f >= start_frame][:num_frames]
     if len(frames) == 0:
         frames = sorted(df["frame_id"].unique())[:num_frames]
@@ -245,12 +253,12 @@ def plot_gantt_horizontal_split(df: pd.DataFrame, out_path: str, algo_name: str,
     ax.set_yticklabels(labels, color="white", fontsize=9.5, fontweight="bold")
     ax.set_ylim(-0.8, len(modules) - 0.2)
     ax.set_xlim(-1, df_zoom["end_ms"].max() * 1.05)
-    ax.set_xlabel("Timeline (ms) - Unthrottled Back-to-Back Processing", color="white", fontsize=11, fontweight="bold")
+    ax.set_xlabel("Timeline (ms)", color="white", fontsize=11, fontweight="bold")
     
     # Subtitle with hardware info
     hardware_info = "Intel Core i7-7600U @ 2.80GHz (2 Cores, 4 Threads)"
     ax.set_title(
-        f"{algo_name} Fig. 2 Unthrottled Pipeline Timeline (0 ms Wait Time) — {dataset_name.capitalize()} Dataset\nHardware: {hardware_info}",
+        f"{algo_name} Fig. 2 Timeline ({title_suffix}) — {dataset_name.capitalize()} Dataset\nHardware: {hardware_info}",
         color="white", fontsize=13.5, fontweight="bold", pad=16,
     )
     
@@ -270,7 +278,7 @@ def plot_gantt_horizontal_split(df: pd.DataFrame, out_path: str, algo_name: str,
     plt.tight_layout()
     plt.savefig(out_path, dpi=150, facecolor=fig.get_facecolor())
     plt.close(fig)
-    print(f"[✔] Saved {algo_name} Gantt chart → {out_path}")
+    print(f"[✔] Saved {algo_name} Gantt chart ({title_suffix}) → {out_path}")
 
 def main():
     parser = argparse.ArgumentParser(description="Kimera timing visualizer")
@@ -280,13 +288,27 @@ def main():
     parser.add_argument("--dataset", default="suedhoehe")
     parser.add_argument("--start-frame", type=int, default=50)
     parser.add_argument("--num-frames", type=int, default=5)
+    parser.add_argument("--include-non-keyframes", action="store_true", default=True)
     args = parser.parse_args()
 
     os.makedirs(os.path.dirname(args.out), exist_ok=True)
-    df = load_kimera_csv(args.csv)
+    
+    # Generate With Non-Keyframes
+    df_with = load_kimera_csv(args.csv, include_non_keyframes=True)
     plot_gantt_horizontal_split(
-        df, args.out, args.algo, args.dataset,
-        start_frame=args.start_frame, num_frames=args.num_frames
+        df_with, args.out, args.algo, args.dataset,
+        start_frame=args.start_frame, num_frames=args.num_frames,
+        title_suffix="With Non-Keyframes / Unthrottled Stream"
+    )
+    
+    # Generate Keyframes Only
+    out_dir = os.path.dirname(args.out)
+    out_kf_only = os.path.join(out_dir, "2_kimera_keyframes_only_gantt_chart.png")
+    df_kf = load_kimera_csv(args.csv, include_non_keyframes=False)
+    plot_gantt_horizontal_split(
+        df_kf, out_kf_only, args.algo, args.dataset,
+        start_frame=args.start_frame, num_frames=args.num_frames,
+        title_suffix="Keyframes Only / Raw Logged CSV View"
     )
 
 if __name__ == "__main__":
