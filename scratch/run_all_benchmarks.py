@@ -4,8 +4,11 @@ import glob
 import time
 import pandas as pd
 
-results_root = "/home/terrence/researchProject/results/euroc"
-euroc_base = "/home/terrence/researchProject/datasets/Euroc"
+script_dir = os.path.dirname(os.path.abspath(__file__))
+project_root = os.path.dirname(script_dir)
+
+results_root = os.environ.get("RESULTS_ROOT", os.path.join(project_root, "results", "euroc"))
+euroc_base = os.environ.get("EUROC_BASE", os.path.join(project_root, "datasets", "Euroc"))
 
 sequences = [
     ("MH_01_easy", os.path.join(euroc_base, "machine_hall", "MH_01_easy")),
@@ -56,7 +59,6 @@ for seq_name, seq_dir in sequences:
                             continue
                         parts = line.strip().split()
                         if len(parts) >= 8:
-                            # timestamp is in s float or ns
                             t_val = float(parts[0])
                             if t_val > 1e12:
                                 t_val *= 1e-9
@@ -72,7 +74,6 @@ for seq_name, seq_dir in sequences:
     ov_tum = os.path.join(out_dir, "open_vins.txt")
     if os.path.exists(ros2_bag):
         print(f"Running OpenVINS on {seq_name}...")
-        # OpenVINS runner container command
         cmd_ov = [
             "docker", "run", "--rm",
             "-v", f"{ros2_bag}:/dataset",
@@ -108,5 +109,31 @@ for seq_name, seq_dir in sequences:
             subprocess.run(cmd_kimera, timeout=300)
         except Exception as e:
             print(f"Kimera-VIO run completed/finished: {e}")
+
+    # ----------------------------------------------------
+    # 4. NVIDIA cuVSLAM (GPU-Accelerated)
+    # ----------------------------------------------------
+    cuvslam_tum = os.path.join(out_dir, "cuvslam.txt")
+    if os.path.exists(ros2_bag):
+        print(f"Running NVIDIA cuVSLAM (GPU) on {seq_name}...")
+        isaac_ros_ws = os.path.join(project_root, "workspace", "isaac_ros_ws")
+        cmd_cuvslam = [
+            "docker", "run", "--rm",
+            "--runtime=nvidia", "--gpus", "all",
+            "-v", f"{ros2_bag}:/dataset",
+            "-v", f"{out_dir}:/output",
+            "-v", f"{isaac_ros_ws}:/workspaces/isaac_ros-dev",
+            "isaac_ros_dev-x86_64:latest",
+            "bash", "-c",
+            "source /opt/ros/humble/setup.bash && source /workspaces/isaac_ros-dev/install/setup.bash 2>/dev/null || true && "
+            "ros2 launch isaac_ros_visual_slam isaac_ros_visual_slam.launch.py num_cameras:=2 enable_imu_fusion:=true & "
+            "C_PID=$! && sleep 2 && "
+            "ros2 bag play /dataset --remap /cam0/image_raw:=/visual_slam/image_0 --remap /cam1/image_raw:=/visual_slam/image_1 --remap /imu0:=/visual_slam/imu && "
+            "sleep 2 && kill $C_PID || true"
+        ]
+        try:
+            subprocess.run(cmd_cuvslam, timeout=300)
+        except Exception as e:
+            print(f"cuVSLAM run completed/finished: {e}")
 
 print("\nAll sequence benchmark executions completed!")

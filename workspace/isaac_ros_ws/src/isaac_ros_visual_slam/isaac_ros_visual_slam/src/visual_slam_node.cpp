@@ -97,16 +97,15 @@ VisualSlamNode::VisualSlamNode(rclcpp::NodeOptions options)
   // Subscribers:
   image_subs_(
     [this]() {
-      std::vector<std::shared_ptr<NitrosImageViewSubscriber>> subs;
+      std::vector<NitrosImageViewSubscriber> subs;
       subs.reserve(num_cameras_);
       for (uint i = 0; i < num_cameras_; ++i) {
         subs.push_back(
-          std::make_shared<NitrosImageViewSubscriber>(
-            this,
-            "visual_slam/image_" + std::to_string(i),
-            nvidia::isaac_ros::nitros::nitros_image_rgb8_t::supported_type_name,
-            std::bind(&VisualSlamNode::CallbackImage, this, i, std::placeholders::_1),
-            nvidia::isaac_ros::nitros::NitrosStatisticsConfig(), image_qos_));
+          create_subscription<sensor_msgs::msg::Image>(
+            "visual_slam/image_" + std::to_string(i), image_qos_,
+            [this, i](const ImageType & msg) {
+              return CallbackImage(i, msg);
+            }));
       }
       return subs;
     }()),

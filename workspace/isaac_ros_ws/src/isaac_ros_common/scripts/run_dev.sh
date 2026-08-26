@@ -138,24 +138,21 @@ if [[ -z "$(docker ps)" ]] ;  then
 fi
 
 # Check if git-lfs is installed.
-git lfs &>/dev/null
-if [[ $? -ne 0 ]] ; then
-    print_error "git-lfs is not insalled. Please make sure git-lfs is installed before you clone the repo."
-    exit 1
-fi
-
-# Check if all LFS files are in place in the repository where this script is running from.
-cd $ROOT
-git rev-parse &>/dev/null
-if [[ $? -eq 0 ]]; then
-    LFS_FILES_STATUS=$(cd $ISAAC_ROS_DEV_DIR && git lfs ls-files | cut -d ' ' -f2)
-    for (( i=0; i<${#LFS_FILES_STATUS}; i++ )); do
-        f="${LFS_FILES_STATUS:$i:1}"
-        if [[ "$f" == "-" ]]; then
-            print_error "LFS files are missing. Please re-clone repos after installing git-lfs."
-            exit 1
-        fi
-    done
+if ! git lfs &>/dev/null; then
+    print_warning "git-lfs is not installed. Proceeding without LFS checks."
+else
+    # Check if all LFS files are in place in the repository where this script is running from.
+    cd $ROOT
+    if git rev-parse &>/dev/null; then
+        LFS_FILES_STATUS=$(cd $ISAAC_ROS_DEV_DIR && git lfs ls-files 2>/dev/null | cut -d ' ' -f2 || true)
+        for (( i=0; i<${#LFS_FILES_STATUS}; i++ )); do
+            f="${LFS_FILES_STATUS:$i:1}"
+            if [[ "$f" == "-" ]]; then
+                print_warning "Some LFS files may be missing. Proceeding anyway."
+                break
+            fi
+        done
+    fi
 fi
 
 # Determine base image key

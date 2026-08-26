@@ -40,14 +40,11 @@
 #include "sensor_msgs/msg/point_cloud2.hpp"
 #include "visualization_msgs/msg/marker_array.hpp"
 
-using ImageType = nvidia::isaac_ros::nitros::NitrosImageView;
+using ImageType = sensor_msgs::msg::Image::ConstSharedPtr;
 using CameraInfoType = sensor_msgs::msg::CameraInfo;
 using ImuType = sensor_msgs::msg::Imu;
 using PointCloud2Type = sensor_msgs::msg::PointCloud2;
-using NitrosImageViewSubscriber =
-  nvidia::isaac_ros::nitros::ManagedNitrosSubscriber<ImageType>;
-using NitrosTimeStamp =
-  message_filters::message_traits::TimeStamp<ImageType::BaseType>;
+using NitrosImageViewSubscriber = rclcpp::Subscription<sensor_msgs::msg::Image>::SharedPtr;
 using PoseType = geometry_msgs::msg::Pose;
 using PoseStampedType = geometry_msgs::msg::PoseStamped;
 using PoseWithCovarianceStampedType = geometry_msgs::msg::PoseWithCovarianceStamped;

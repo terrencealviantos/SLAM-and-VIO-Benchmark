@@ -3,7 +3,8 @@
 # Run this on your NVIDIA GPU-enabled PC or Jetson board.
 
 # Locate workspace root directory
-WORKSPACE_DIR="/home/terrence/researchProject/workspace/isaac_ros_ws"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+WORKSPACE_DIR="${WORKSPACE_DIR:-$SCRIPT_DIR/isaac_ros_ws}"
 
 if [ ! -d "$WORKSPACE_DIR" ]; then
   echo "Error: Directory $WORKSPACE_DIR does not exist."

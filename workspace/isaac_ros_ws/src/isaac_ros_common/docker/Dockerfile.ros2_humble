@@ -24,6 +24,8 @@ ENV ROS_PYTHON_VERSION=3
 ENV ROS_DISTRO=humble
 ENV ROS_ROOT=/opt/ros/${ROS_DISTRO}
 ENV RMW_IMPLEMENTATION=rmw_fastrtps_cpp
+ENV ROSDISTRO_INDEX_URL=https://mirrors.tuna.tsinghua.edu.cn/rosdistro/index-v4.yaml
+ENV DEB_BUILD_OPTIONS=nocheck
 
 # Avoid setup.py and easy_install deprecation warnings caused by colcon and setuptools
 # https://github.com/colcon/colcon-core/issues/454
@@ -31,9 +33,9 @@ ENV PYTHONWARNINGS=ignore:::setuptools.command.install,ignore:::setuptools.comma
 RUN echo "Warning: Using the PYTHONWARNINGS environment variable to silence setup.py and easy_install deprecation warnings caused by colcon"
 
 # Add ROS 2 apt repository
+COPY ros-archive-keyring.gpg /usr/share/keyrings/ros-archive-keyring.gpg
 RUN --mount=type=cache,target=/var/cache/apt \
-    curl -sSL https://raw.githubusercontent.com/ros/rosdistro/master/ros.key -o /usr/share/keyrings/ros-archive-keyring.gpg \
-    && echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/ros-archive-keyring.gpg] http://packages.ros.org/ros2/ubuntu $(source /etc/os-release && echo $UBUNTU_CODENAME) main" | tee /etc/apt/sources.list.d/ros2.list > /dev/null \
+    echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/ros-archive-keyring.gpg] http://packages.ros.org/ros2/ubuntu $(source /etc/os-release && echo $UBUNTU_CODENAME) main" | tee /etc/apt/sources.list.d/ros2.list > /dev/null \
     && apt-get update
 
 # ROS fundamentals
@@ -54,7 +56,7 @@ apt-get update && apt-get install -y \
         quilt
 
 # ROS Python fundamentals
-RUN python3 -m pip install -U \
+RUN python3 -m pip install --default-timeout=1000 --retries 10 -U \
         flake8-blind-except \
         flake8-builtins \
         flake8-class-newline \
@@ -129,10 +131,13 @@ apt-get update && apt-get install -y \
 # Setup rosdep
 COPY rosdep/extra_rosdeps.yaml /etc/ros/rosdep/sources.list.d/nvidia-isaac.yaml
 RUN --mount=type=cache,target=/var/cache/apt \
-    rosdep init \
+    mkdir -p /etc/ros/rosdep/sources.list.d \
+    && echo "yaml https://raw.githubusercontent.com/ros/rosdistro/master/rosdep/osx-homebrew.yaml osx" > /etc/ros/rosdep/sources.list.d/20-default.list \
+    && echo "yaml https://raw.githubusercontent.com/ros/rosdistro/master/rosdep/base.yaml" >> /etc/ros/rosdep/sources.list.d/20-default.list \
+    && echo "yaml https://raw.githubusercontent.com/ros/rosdistro/master/rosdep/python.yaml" >> /etc/ros/rosdep/sources.list.d/20-default.list \
+    && echo "yaml https://raw.githubusercontent.com/ros/rosdistro/master/rosdep/ruby.yaml" >> /etc/ros/rosdep/sources.list.d/20-default.list \
     && echo "yaml file:///etc/ros/rosdep/sources.list.d/nvidia-isaac.yaml" | tee /etc/ros/rosdep/sources.list.d/00-nvidia-isaac.list \
-    && sed -i 's|gbpdistro https://raw.githubusercontent.com/ros/rosdistro/master/releases/fuerte.yaml fuerte||g' /etc/ros/rosdep/sources.list.d/20-default.list \
-    && rosdep update
+    && (rosdep update || true)
 
 ####### -- Install updated packages over installed debians
 
@@ -141,9 +146,9 @@ RUN --mount=type=cache,target=/var/cache/apt \
     mkdir -p ${ROS_ROOT}/src && cd ${ROS_ROOT}/src \
     && git clone https://github.com/osrf/negotiated && cd negotiated && git checkout master \
     && source ${ROS_ROOT}/setup.bash \
-    && cd negotiated_interfaces && bloom-generate rosdebian && fakeroot debian/rules binary \
+    && cd negotiated_interfaces && bloom-generate rosdebian && ./debian/rules binary \
     && cd ../ && apt-get install -y ./*.deb && rm ./*.deb \
-    && cd negotiated && bloom-generate rosdebian && fakeroot debian/rules binary \
+    && cd negotiated && bloom-generate rosdebian && ./debian/rules binary \
     && cd ../ && apt-get install -y ./*.deb && rm ./*.deb
 
 # Install image_proc from 55bf2a38 with backported resize node fix
@@ -155,7 +160,7 @@ RUN --mount=type=cache,target=/var/cache/apt \
     && git config user.email "builder@nvidia.com" && git config user.name "NVIDIA Builder" \
     && git remote add fork https://github.com/schornakj/image_pipeline.git && git fetch fork && git cherry-pick 969d6c763df99b42844742946f7a70c605a72a15 \
     && source ${ROS_ROOT}/setup.bash \
-    && cd image_proc && bloom-generate rosdebian && fakeroot debian/rules binary \
+    && cd image_proc && bloom-generate rosdebian && ./debian/rules binary \
     && cd ../ && apt-get install -y --allow-downgrades ./*.deb \
     && echo "image_pipeline (image_proc) https://github.com/ros-perception/image_pipeline/pull/786/commits/969d6c763df99b42844742946f7a70c605a72a15 on 55bf2a38" >> ${ROS_ROOT}/VERSION \
     && cd ../ && rm -Rf src build log
@@ -175,7 +180,7 @@ RUN --mount=type=cache,target=/var/cache/apt \
     && git cherry-pick 232262c02a1265830c7785b7547bd51e1124fcd8 \
     && source ${ROS_ROOT}/setup.bash \
     && cd ../ && rosdep install -i -r --from-paths rclcpp-release/ --rosdistro humble -y \
-    && cd rclcpp-release && bloom-generate rosdebian && fakeroot debian/rules binary \
+    && cd rclcpp-release && bloom-generate rosdebian && ./debian/rules binary \
     && cd ../ && apt-get install -y --allow-downgrades ./*.deb \
     && echo "rclcpp https://github.com/ros2/rclcpp/commit/232262c02a1265830c7785b7547bd51e1124fcd8" >> ${ROS_ROOT}/VERSION \
     && cd ../ && rm -Rf src build log
@@ -226,17 +231,17 @@ RUN --mount=type=cache,target=/var/cache/apt \
     mkdir -p ${ROS_ROOT}/src && cd ${ROS_ROOT}/src \
     && git clone https://github.com/ros-planning/moveit_resources.git -b humble \
     && cd moveit_resources && source ${ROS_ROOT}/setup.bash \
-    && cd fanuc_description && bloom-generate rosdebian && fakeroot debian/rules binary \
+    && cd fanuc_description && bloom-generate rosdebian && ./debian/rules binary \
     && cd .. && apt-get install -y ./*.deb && rm *.deb \
-    && cd fanuc_moveit_config && bloom-generate rosdebian && fakeroot debian/rules binary \
+    && cd fanuc_moveit_config && bloom-generate rosdebian && ./debian/rules binary \
     && cd .. && apt-get install -y ./*.deb && rm *.deb \
-    && cd panda_description && bloom-generate rosdebian && fakeroot debian/rules binary \
+    && cd panda_description && bloom-generate rosdebian && ./debian/rules binary \
     && cd .. && apt-get install -y ./*.deb && rm *.deb \
-    && cd panda_moveit_config && bloom-generate rosdebian && fakeroot debian/rules binary \
+    && cd panda_moveit_config && bloom-generate rosdebian && ./debian/rules binary \
     && cd .. && apt-get install -y ./*.deb && rm *.deb \
-    && cd pr2_description && bloom-generate rosdebian && fakeroot debian/rules binary \
+    && cd pr2_description && bloom-generate rosdebian && ./debian/rules binary \
     && cd .. && apt-get install -y ./*.deb && rm *.deb \
-    && cd moveit_resources && bloom-generate rosdebian && fakeroot debian/rules binary \
+    && cd moveit_resources && bloom-generate rosdebian && ./debian/rules binary \
     && cd .. && apt-get install -y ./*.deb && rm *.deb
 
 # Install MoveIt task constructor from source.  The "demo" package depends on moveit_resources_panda_moveit_config,
@@ -245,17 +250,17 @@ RUN --mount=type=cache,target=/var/cache/apt \
     mkdir -p ${ROS_ROOT}/src && cd ${ROS_ROOT}/src \
     && git clone https://github.com/ros-planning/moveit_task_constructor.git -b humble \
     && cd moveit_task_constructor && source ${ROS_ROOT}/setup.bash \
-    && cd msgs && bloom-generate rosdebian && fakeroot debian/rules binary \
+    && cd msgs && bloom-generate rosdebian && ./debian/rules binary \
     && cd ../ && apt-get install -y ./*.deb && rm ./*.deb \
-    && cd rviz_marker_tools && bloom-generate rosdebian && fakeroot debian/rules binary \
+    && cd rviz_marker_tools && bloom-generate rosdebian && ./debian/rules binary \
     && cd ../ && apt-get install -y ./*.deb && rm ./*.deb \
-    && cd core && bloom-generate rosdebian && fakeroot debian/rules binary DEB_BUILD_OPTIONS=nocheck \
+    && cd core && bloom-generate rosdebian && ./debian/rules binary DEB_BUILD_OPTIONS=nocheck \
     && cd ../ && apt-get install -y ./*.deb && rm ./*.deb \
-    && cd capabilities && bloom-generate rosdebian && fakeroot debian/rules binary DEB_BUILD_OPTIONS=nocheck \
+    && cd capabilities && bloom-generate rosdebian && ./debian/rules binary DEB_BUILD_OPTIONS=nocheck \
     && cd ../ && apt-get install -y ./*.deb && rm ./*.deb \
-    && cd visualization && bloom-generate rosdebian && fakeroot debian/rules binary DEB_BUILD_OPTIONS=nocheck \
+    && cd visualization && bloom-generate rosdebian && ./debian/rules binary DEB_BUILD_OPTIONS=nocheck \
     && cd ../ && apt-get install -y ./*.deb && rm ./*.deb \
-    && cd demo && bloom-generate rosdebian && fakeroot debian/rules binary DEB_BUILD_OPTIONS=nocheck \
+    && cd demo && bloom-generate rosdebian && ./debian/rules binary DEB_BUILD_OPTIONS=nocheck \
     && cd ../ && apt-get install -y ./*.deb && rm ./*.deb
 
 # MoveIt 2's hybrid planning package depends on moveit_resources_panda_moveit_config, installed from source above.
@@ -268,7 +273,7 @@ RUN --mount=type=cache,target=/var/cache/apt \
     mkdir -p ${ROS_ROOT}/src && cd ${ROS_ROOT}/src \
     && git clone https://github.com/ros-planning/moveit2_tutorials.git -b humble \
     && cd moveit2_tutorials && source ${ROS_ROOT}/setup.bash \
-    && bloom-generate rosdebian && fakeroot debian/rules binary \
+    && bloom-generate rosdebian && ./debian/rules binary \
     && cd ../ && apt-get install -y ./*.deb && rm ./*.deb
 
 # Install paho-mqtt for isaac_ros_mission_client

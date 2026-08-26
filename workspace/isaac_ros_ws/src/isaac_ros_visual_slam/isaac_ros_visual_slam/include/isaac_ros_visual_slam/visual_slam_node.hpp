@@ -181,7 +181,7 @@ private:
   const std::string debug_dump_path_;
 
   // Subscribers
-  const std::vector<std::shared_ptr<NitrosImageViewSubscriber>> image_subs_;
+  const std::vector<NitrosImageViewSubscriber> image_subs_;
   const std::vector<rclcpp::Subscription<CameraInfoType>::SharedPtr> camera_info_subs_;
   const rclcpp::Subscription<ImuType>::SharedPtr imu_sub_;
 

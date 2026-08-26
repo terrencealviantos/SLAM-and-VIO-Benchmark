@@ -230,18 +230,18 @@ CUVSLAM_ImageEncoding TocuVSLAMImageEncoding(const std::string & image_encoding)
   throw std::invalid_argument("Received unknown image encoding: " + image_encoding);
 }
 
-// Helper function to create CUVSLAM_Image from NitrosImageView.
+// Helper function to create CUVSLAM_Image from sensor_msgs::msg::Image.
 CUVSLAM_Image TocuVSLAMImage(
   int32_t camera_index, const ImageType & image_view, const int64_t & acqtime_ns)
 {
   CUVSLAM_Image cuvslam_image;
   cuvslam_image.timestamp_ns = acqtime_ns;
-  cuvslam_image.pixels = image_view.GetGpuData();
-  cuvslam_image.width = image_view.GetWidth();
-  cuvslam_image.height = image_view.GetHeight();
+  cuvslam_image.pixels = image_view->data.data();
+  cuvslam_image.width = image_view->width;
+  cuvslam_image.height = image_view->height;
   cuvslam_image.camera_index = camera_index;
-  cuvslam_image.pitch = image_view.GetStride();
-  cuvslam_image.image_encoding = TocuVSLAMImageEncoding(image_view.GetEncoding());
+  cuvslam_image.pitch = image_view->step;
+  cuvslam_image.image_encoding = TocuVSLAMImageEncoding(image_view->encoding);
   return cuvslam_image;
 }
 

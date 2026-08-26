@@ -1,0 +1,202 @@
+\documentclass[english, cd=nocolor, cdfont=off, fontsize=11pt]{tudscrreprt}
+
+\setlength{\parskip}{1em}
+\setlength{\parindent}{0pt}
+
+\usepackage{graphicx}
+\usepackage{amsmath}
+
+\title{Research Project}
+\author{Terrence Alvianto Sutardi}
+\date{March 2026}
+
+\begin{document}
+
+\maketitle
+\tableofcontents
+
+\section{Background}
+
+\subsection{Visual Odometry and Visual-Inertial Odometry}
+
+\subsubsection{Visual Odometry (VO)}
+
+Visual odometry is the process of determining the position and orientation of a robot or other computer-based system by analyzing a set of camera images taken by the system of its environment. It has been used in a wide variety of robotic applications, such as on the Mars Exploration Rovers.
+
+VO systems typically operate on different camera configurations, including monocular, stereo, and RGB-D cameras. While VO can provide accurate short-term motion estimates, it suffers from drift accumulation due to the absence of global constraints or absolute reference measurements.
+
+An absolute reference tells you your true position in the world, not just relative motion.
+Global constraints are mechanisms that correct accumulated errors over time such as loop closure in ORB-SLAM3.
+
+\subsubsection{Visual-Inertial Odometry (VIO)}
+
+Visual-Inertial Odometry (VIO) extends VO by incorporating inertial measurements from an Inertial Measurement Unit (IMU), such as accelerometers and gyroscopes. The combination of visual and inertial data improves motion estimation, particularly in challenging scenarios.
+
+Compared to pure VO, VIO offers several advantages:
+\begin{itemize}
+    \item Improved robustness under rapid motion and motion blur
+    \item Better scale observability, especially for monocular setups
+    \item Reduced drift through inertial constraints
+\end{itemize}
+
+However, similar to VO, VIO still estimates only a local trajectory and does not inherently ensure global consistency.
+
+\subsection{Tracking in SLAM Systems}
+
+Tracking is a fundamental component of Simultaneous Localization and Mapping (SLAM) systems. Its primary objective is to estimate the current pose of the camera using incoming sensor data and previously observed information.
+
+In feature-based SLAM systems, tracking typically involves:
+\begin{itemize}
+    \item Detecting features in the current frame
+    \item Associating them with features from previous frames or a global map
+    \item Estimating the camera pose through geometric optimization
+\end{itemize}
+
+Accurate tracking is essential, as failures in this stage can lead to loss of localization and degradation of the entire SLAM system.
+
+\subsubsection{Difference Between Pure VIO and SLAM}
+
+Although VIO and SLAM are closely related, they differ fundamentally in their objectives and system design.
+
+\paragraph{Pure VIO}
+Pure VIO systems focus on estimating the local trajectory of the sensor by combining visual and inertial data. These systems:
+\begin{itemize}
+    \item Do not maintain a persistent global map
+    \item Do not perform loop closure
+    \item Accumulate drift over time
+\end{itemize}
+
+\paragraph{SLAM (Simultaneous Localization and Mapping)}
+In contrast, SLAM systems jointly estimate the camera trajectory and build a map of the environment. Key characteristics include:
+\begin{itemize}
+    \item Construction and maintenance of a global map
+    \item Loop closure detection to correct accumulated drift
+    \item Global optimization (e.g., bundle adjustment or pose graph optimization)
+\end{itemize}
+
+\paragraph{Summary}
+In essence, VIO provides accurate short-term motion estimation, while SLAM ensures long-term consistency by correcting drift through global optimization and loop closure.
+
+\subsection{Feature Types in Visual Tracking}
+
+Visual tracking methods can be broadly categorized into descriptor-based, patch-based, and direct approaches.
+
+\subsubsection{Descriptor-Based Methods}
+
+Descriptor-based methods detect salient keypoints and compute descriptors that are invariant to transformations such as rotation and scale. These descriptors are used to establish correspondences between frames.
+
+A common example is ORB (Oriented FAST and Rotated BRIEF), which is widely used in real-time SLAM systems.
+
+Advantages:
+\begin{itemize}
+    \item Robust to viewpoint, scale, and illumination changes
+    \item Suitable for wide-baseline matching and relocalization
+\end{itemize}
+
+Disadvantages:
+\begin{itemize}
+    \item Computationally expensive due to descriptor extraction and matching
+\end{itemize}
+
+\subsubsection{Patch-Based Methods (KLT Tracker)}
+
+Patch-based methods, such as the Kanade--Lucas--Tomasi (KLT) tracker, track features by following small image patches using optical flow. Instead of descriptors, these methods rely on pixel intensity consistency between frames.
+
+Advantages:
+\begin{itemize}
+    \item Computationally efficient and suitable for real-time tracking
+    \item Effective for small inter-frame motion
+\end{itemize}
+
+Disadvantages:
+\begin{itemize}
+    \item Sensitive to illumination changes
+    \item Less robust to large motion and viewpoint variation
+\end{itemize}
+
+\subsubsection{Direct Methods}
+
+Direct methods operate directly on pixel intensities without explicit feature extraction. They estimate camera motion by minimizing photometric error across many pixels.
+
+An example is LSD-SLAM, which performs semi-dense reconstruction using direct image alignment.
+
+Advantages:
+\begin{itemize}
+    \item Utilizes more image information, including low-texture regions
+    \item Avoids explicit feature detection and matching
+\end{itemize}
+
+Disadvantages:
+\begin{itemize}
+    \item Sensitive to illumination changes and camera calibration errors
+\end{itemize}
+
+\subsubsection{Descriptor-Based vs. KLT Tracking}
+
+Descriptor-based and KLT tracking represent two different trade-offs in visual tracking.
+
+Descriptor-based tracking (e.g., ORB) is robust and suitable for long-term tracking and relocalization, but comes with higher computational cost. In contrast, KLT tracking is significantly faster and well-suited for frame-to-frame tracking, but lacks robustness under large motion or appearance changes.
+
+This trade-off motivates hybrid approaches that combine both methods, where KLT is used for efficient short-term tracking and descriptor-based methods are retained for robustness and global consistency.
+
+\section{State of the Art}
+
+\subsection{ORB-SLAM3}
+
+ORB-SLAM3 is a state-of-the-art feature-based SLAM system that supports monocular, stereo, and RGB-D cameras, as well as visual-inertial configurations. It extends previous versions of ORB-SLAM by incorporating visual-inertial fusion, improved robustness, and multi-map capabilities.
+
+The system consists of three main parallel threads: tracking, local mapping, and loop closing. Among these, the tracking thread is responsible for estimating the camera pose for each incoming frame and serves as the entry point of the SLAM pipeline.
+
+\subsubsection{Tracking Pipeline in ORB-SLAM3}
+
+The tracking process operates on each incoming frame and consists of the following main steps:
+
+\paragraph{Feature Extraction}
+ORB features are extracted from the input image. These features provide keypoints and associated binary descriptors that are invariant to rotation and scale.
+
+\paragraph{Motion Model Prediction}
+A motion model is used to predict the current camera pose based on the previous frame. This prediction provides an initial estimate for feature matching.
+
+\paragraph{Feature Matching}
+Extracted ORB features are matched against features from the previous frame or projected map points. Descriptor-based matching is used to establish correspondences.
+
+\paragraph{Pose Estimation}
+The camera pose is estimated by minimizing reprojection error using the matched feature correspondences. This is typically solved using a Perspective-n-Point (PnP) formulation combined with optimization techniques.
+
+\paragraph{Tracking with Local Map}
+If a local map is available, additional map points are projected into the current frame and matched to improve pose accuracy.
+
+\paragraph{Relocalization}
+If tracking fails, the system attempts to relocalize using a place recognition module based on a bag-of-words approach.
+
+The reliance on descriptor-based feature extraction and matching ensures robustness but introduces significant computational cost, particularly in real-time applications.
+
+\subsection{KLT-Based and Hybrid Tracking Approaches}
+
+To improve efficiency, several modern SLAM and VIO systems incorporate optical flow or KLT-based tracking, often in combination with feature-based methods.
+
+\subsubsection{HybVIO}
+
+HybVIO is a hybrid visual-inertial odometry system that combines feature-based and direct approaches. It uses optical flow tracking to efficiently propagate features between frames, reducing the need for repeated feature detection and descriptor computation.
+
+The system maintains robustness by integrating inertial measurements and performing optimization over a sliding window. HybVIO demonstrates that combining fast tracking with feature-based optimization can improve efficiency without sacrificing accuracy.
+
+\subsubsection{OV2SLAM}
+
+OV2SLAM is a visual SLAM system designed for efficiency and flexibility. It integrates both descriptor-based matching and optical flow tracking. In particular, it uses KLT tracking for short-term feature propagation and descriptor-based methods for keyframe processing and relocalization.
+
+This hybrid design reduces computational cost while maintaining robustness in challenging environments.
+
+\subsubsection{Kimera-VIO}
+
+Kimera-VIO is a real-time visual-inertial odometry system that emphasizes accuracy and robustness through optimization-based estimation. It employs feature tracking combined with inertial constraints and performs tightly coupled optimization over a sliding window.
+
+Although Kimera-VIO primarily relies on feature-based tracking, it incorporates efficient tracking strategies and tightly integrates visual and inertial information, making it highly robust in dynamic and challenging scenarios.
+
+\subsubsection{Discussion}
+
+These systems highlight a common trend in modern SLAM and VIO research: the combination of multiple tracking strategies to balance robustness and computational efficiency. In particular, KLT-based tracking is frequently used for fast frame-to-frame motion estimation, while descriptor-based methods are retained for robustness, relocalization, and global consistency.
+
+This observation motivates the integration of KLT tracking into the ORB-SLAM3 tracking pipeline, where it can potentially replace or complement descriptor-based matching in the early stages of tracking.
+
+\end{document}

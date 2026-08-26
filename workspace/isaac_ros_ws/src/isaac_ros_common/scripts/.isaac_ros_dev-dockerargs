@@ -1,0 +1,2 @@
+-v /home/boris/SLAM-and-VIO-Benchmark/datasets:/workspaces/isaac_ros-dev/datasets
+-v /home/boris/SLAM-and-VIO-Benchmark/results:/workspaces/isaac_ros-dev/results

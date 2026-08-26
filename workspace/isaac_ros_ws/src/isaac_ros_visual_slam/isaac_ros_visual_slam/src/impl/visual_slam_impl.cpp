@@ -570,6 +570,7 @@ void VisualSlamNode::VisualSlamImpl::CallbackImu(const ImuType::ConstSharedPtr &
     "VisualSlamNode::VisualSlamImpl::CallbackImu", nvidia::isaac_ros::nitros::CLR_RED);
   if (IsInitialized()) {
     const rclcpp::Time timestamp(msg->header.stamp);
+    RCLCPP_INFO_ONCE(node.get_logger(), "CallbackImu received first IMU: ts=%ld", timestamp.nanoseconds());
     sequencer.CallbackStream1(timestamp.nanoseconds(), msg);
   } else {initial_imu_message = msg;}
   nvidia::isaac_ros::nitros::nvtxRangePopWrapper();
@@ -582,7 +583,8 @@ void VisualSlamNode::VisualSlamImpl::CallbackImage(int index, const ImageType & 
     nvidia::isaac_ros::nitros::CLR_YELLOW);
 
   if (IsInitialized()) {
-    const rclcpp::Time timestamp = NitrosTimeStamp::value(image_view.GetMessage());
+    const rclcpp::Time timestamp(image_view->header.stamp);
+    RCLCPP_INFO_ONCE(node.get_logger(), "CallbackImage received first Image %d: ts=%ld", index, timestamp.nanoseconds());
     sync.AddMessage(index, timestamp.nanoseconds(), image_view);
   }
   nvidia::isaac_ros::nitros::nvtxRangePopWrapper();
@@ -605,6 +607,7 @@ void VisualSlamNode::VisualSlamImpl::CallbackCameraInfo(
 void VisualSlamNode::VisualSlamImpl::CallbackSynchronizedImages(
   int64_t latest_ts, const std::vector<std::pair<int, ImageType>> & idx_and_image_msgs)
 {
+  RCLCPP_INFO_ONCE(node.get_logger(), "CallbackSynchronizedImages: latest_ts=%ld, count=%zu", latest_ts, idx_and_image_msgs.size());
   sequencer.CallbackStream2(latest_ts, idx_and_image_msgs);
 }
 
@@ -612,6 +615,7 @@ void VisualSlamNode::VisualSlamImpl::UpdatePose(
   const std::vector<ImuType::ConstSharedPtr> & imu_msgs,
   const std::vector<std::pair<int, ImageType>> & idx_and_image_msgs)
 {
+  RCLCPP_INFO_ONCE(node.get_logger(), "UpdatePose called! imu_count=%zu, img_count=%zu", imu_msgs.size(), idx_and_image_msgs.size());
   nvidia::isaac_ros::nitros::nvtxRangePushWrapper(
     "VisualSlamNode::VisualSlamImpl::UpdatePose", nvidia::isaac_ros::nitros::CLR_MAGENTA);
   Stopwatch stopwatch;
@@ -620,13 +624,14 @@ void VisualSlamNode::VisualSlamImpl::UpdatePose(
   // Get the latest timestamp from images. We assume that the vector is never empty.
   const auto max_element = std::max_element(
     idx_and_image_msgs.begin(), idx_and_image_msgs.end(),
-    [](std::pair<int, ImageType> msg1, std::pair<int, ImageType> msg2) {
-      auto ts1 = NitrosTimeStamp::value(msg1.second.GetMessage());
-      auto ts2 = NitrosTimeStamp::value(msg2.second.GetMessage());
+    [](const std::pair<int, ImageType> & msg1, const std::pair<int, ImageType> & msg2) {
+      const rclcpp::Time ts1(msg1.second->header.stamp);
+      const rclcpp::Time ts2(msg2.second->header.stamp);
       return ts1.nanoseconds() < ts2.nanoseconds();
     });
 
-  const int64_t latest_ts = NitrosTimeStamp::value(max_element->second.GetMessage()).nanoseconds();
+  const rclcpp::Time max_stamp(max_element->second->header.stamp);
+  const int64_t latest_ts = max_stamp.nanoseconds();
 
   RCLCPP_DEBUG(node.get_logger(), "Using image msg timestamp [%ld]", latest_ts);
 
@@ -666,7 +671,7 @@ void VisualSlamNode::VisualSlamImpl::UpdatePose(
   nvidia::isaac_ros::nitros::nvtxRangePushWrapper(
     "CUVSLAM_Track", nvidia::isaac_ros::nitros::CLR_MAGENTA);
   const CUVSLAM_Status vo_status =
-    CUVSLAM_TrackGpuMem(
+    CUVSLAM_Track(
     cuvslam_handle, cuvslam_images.data(), cuvslam_images.size(), nullptr,
     &vo_pose_estimate);
   nvidia::isaac_ros::nitros::nvtxRangePopWrapper();

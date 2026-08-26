@@ -57,5 +57,5 @@ ENV USER_UID=${USER_UID}
 # Switch to non-root user and return to root
 USER ${USERNAME}
 RUN --mount=type=cache,target=/var/cache/apt \
-    rosdep update
+    (rosdep update || true)
 USER root
