@@ -58,6 +58,28 @@ Each algorithm has its own standalone runner script in the repository root:
 
 ---
 
+### 🖥️ Live GUI & Multi-Terminal Visualizer Mode (`--gui`)
+
+To watch the algorithm compute state estimation live with real-time 3D point clouds, camera streams, and trajectory visualizers:
+
+```bash
+# Launch cuVSLAM with separate terminals for Node, Bag player, and RViz2 GUI:
+./run_cuvslam.sh suedhoehe --gui
+
+# Launch ORB-SLAM3 with live Pangolin 3D SLAM Map Viewer & interactive terminal:
+./run_orbslam3.sh euroc_MH01 --gui
+
+# Launch OpenVINS with multi-terminal RViz2 MSCKF visualizer:
+./run_openvins.sh suedhoehe --gui
+```
+
+When `--gui` is passed:
+1. **Terminal 1 (Algorithm Node)**: Displays live tracking performance, telemetry, and GPU acceleration status.
+2. **Terminal 2 (Viewer GUI)**: Opens **RViz2** (or native **Pangolin 3D Viewer** for ORB-SLAM3) showing landmark clouds, camera frustum, and trajectory path.
+3. **Terminal 3 (Rosbag Player)**: Interactive dataset playback with keyboard controls (<kbd>SPACE</kbd> to pause/resume, arrow keys to change rate).
+
+---
+
 ### 2. Master Benchmark Suite
 
 Run any combination of algorithms and datasets with automated trajectory recording and `evo` evaluation:
