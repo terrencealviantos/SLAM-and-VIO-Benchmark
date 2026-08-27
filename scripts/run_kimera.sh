@@ -122,11 +122,13 @@ if [ "$ENABLE_GUI" = true ]; then
                  ros2 launch kimera_vio_ros kimera_vio_ros.launch.xml \
                    params_folder:=/params \
                    parallel:=false \
+                   use_sim_time:=false \
                    use_camera_info:=false \
+                   log_output:=true \
+                   log_output_path:=/output/ \
                    topic.left.image:=${LEFT_TOPIC} \
                    topic.right.image:=${RIGHT_TOPIC} \
-                   topic.imu.data:=${IMU_TOPIC} \
-                   log_output:=true'"
+                   topic.imu.data:=${IMU_TOPIC}'"
 
     sleep 4
 
@@ -164,11 +166,13 @@ else
                ros2 launch kimera_vio_ros kimera_vio_ros.launch.xml \
                  params_folder:=/params \
                  parallel:=false \
+                 use_sim_time:=false \
                  use_camera_info:=false \
+                 log_output:=true \
+                 log_output_path:=/output/ \
                  topic.left.image:=${LEFT_TOPIC} \
                  topic.right.image:=${RIGHT_TOPIC} \
-                 topic.imu.data:=${IMU_TOPIC} \
-                 log_output:=true"
+                 topic.imu.data:=${IMU_TOPIC}"
 
     echo "[2/3] Waiting for node to initialize..."
     sleep 4
