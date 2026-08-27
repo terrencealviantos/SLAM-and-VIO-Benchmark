@@ -55,6 +55,7 @@ done
 RESULTS_DIR="${REPO_ROOT}/results/${TARGET}/kimera"
 DATASETS_DIR="${REPO_ROOT}/datasets"
 KIMERA_WS="${REPO_ROOT}/workspace/kimera_ws"
+RVIZ_DIR="${REPO_ROOT}/scripts/rviz"
 
 mkdir -p "$RESULTS_DIR"
 
@@ -62,14 +63,17 @@ if [ "$TARGET" == "suedhoehe" ]; then
     BAG_PATH="${DATASETS_DIR}/suedhoehe_gps_schnee_02"
     PARAMS_PATH="${REPO_ROOT}/suedhoehe_kimera_params"
     DATASET_NAME="suedhoehe"
+    RVIZ_FILE="/rviz_cfg/suedhoehe_rviz.rviz"
 elif [ "$TARGET" == "euroc_MH01" ]; then
     BAG_PATH="${DATASETS_DIR}/Euroc/machine_hall/MH_01_easy/MH_01_easy_ros2"
     PARAMS_PATH="${REPO_ROOT}/workspace/kimera_ws/src/Kimera-VIO/params/Euroc"
     DATASET_NAME="Euroc"
+    RVIZ_FILE="/rviz_cfg/euroc_rviz.rviz"
 else
     BAG_PATH="$TARGET"
     PARAMS_PATH="${REPO_ROOT}/suedhoehe_kimera_params"
     DATASET_NAME="suedhoehe"
+    RVIZ_FILE="/rviz_cfg/suedhoehe_rviz.rviz"
 fi
 
 echo "=========================================================="
@@ -107,8 +111,9 @@ if [ "$ENABLE_GUI" = true ]; then
       "docker run --rm --name kimera_rviz \
         --net=host --ipc=host \
         -e DISPLAY=${DISPLAY} -e QT_X11_NO_MITSHM=1 -v /tmp/.X11-unix:/tmp/.X11-unix \
+        -v '${RVIZ_DIR}':/rviz_cfg \
         slam-base:latest \
-        bash -c 'source /opt/ros/humble/setup.bash && rviz2'"
+        bash -c 'source /opt/ros/humble/setup.bash && rviz2 -d ${RVIZ_FILE}'"
 
     sleep 2
 
