@@ -10,10 +10,42 @@
 
 set -e
 
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+SCRIPT_DIR="$(cd "$(dirname "$(realpath "${BASH_SOURCE[0]}")")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 
-TARGET="${1:-suedhoehe}"
+# Defaults (can be overridden via CLI flags or env vars)
+CPUS="${CPUS:-2}"
+MEMORY="${MEMORY:-3g}"
+TARGET="suedhoehe"
+
+# Parse CLI arguments
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        --cpus)
+            CPUS="$2"
+            shift 2
+            ;;
+        --memory|-m)
+            MEMORY="$2"
+            shift 2
+            ;;
+        -h|--help)
+            echo "Usage: $0 [dataset_target] [--cpus <N>] [--memory <MEM>]"
+            echo ""
+            echo "Arguments:"
+            echo "  dataset_target       Target dataset: suedhoehe, euroc_MH01, or custom bag path (default: suedhoehe)"
+            echo "  --cpus <N>           Max CPU cores for container (default: 2)"
+            echo "  --memory, -m <MEM>   Max RAM for container (default: 3g)"
+            echo "  -h, --help           Show this help message"
+            exit 0
+            ;;
+        *)
+            TARGET="$1"
+            shift
+            ;;
+    esac
+done
+
 RESULTS_DIR="${REPO_ROOT}/results/${TARGET}/kimera"
 DATASETS_DIR="${REPO_ROOT}/datasets"
 KIMERA_WS="${REPO_ROOT}/workspace/kimera_ws"
@@ -22,13 +54,13 @@ mkdir -p "$RESULTS_DIR"
 
 if [ "$TARGET" == "suedhoehe" ]; then
     BAG_PATH="${DATASETS_DIR}/suedhoehe_gps_schnee_02"
-    DATASET_NAME="suedhoehe"
+    PARAMS_PATH="${REPO_ROOT}/suedhoehe_kimera_params"
 elif [ "$TARGET" == "euroc_MH01" ]; then
     BAG_PATH="${DATASETS_DIR}/Euroc/machine_hall/MH_01_easy/MH_01_easy_ros2"
-    DATASET_NAME="Euroc"
+    PARAMS_PATH="${REPO_ROOT}/workspace/kimera_ws/src/Kimera-VIO/params/Euroc"
 else
     BAG_PATH="$TARGET"
-    DATASET_NAME="Euroc"
+    PARAMS_PATH="${REPO_ROOT}/suedhoehe_kimera_params"
 fi
 
 echo "=========================================================="
@@ -36,14 +68,14 @@ echo " Kimera-VIO Benchmark"
 echo " Target Dataset : $BAG_PATH"
 echo " Output Folder  : $RESULTS_DIR"
 echo " Base Image     : slam-base:latest (ROS 2, OpenCV, GTSAM)"
-echo " Resource Limits: 2 Cores Max, 3 GB RAM Max"
+echo " Resource Limits: ${CPUS} Cores Max, ${MEMORY} RAM Max"
 echo "=========================================================="
 
 BAG_DIR="$(dirname "$(realpath "$BAG_PATH")")"
 BAG_NAME="$(basename "$BAG_PATH")"
 
 docker run --rm \
-  --cpus=2 --memory=3g \
+  --cpus="${CPUS}" --memory="${MEMORY}" \
   -v "${BAG_DIR}":/dataset_dir \
   -v "${RESULTS_DIR}":/output \
   slam-base:latest \

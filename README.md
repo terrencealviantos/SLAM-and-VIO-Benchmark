@@ -87,11 +87,19 @@ Run any combination of algorithms and datasets with automated trajectory recordi
 
 ---
 
-## 🛡️ Resource Protection & Hardware Safety
+## 🛡️ Resource Allocation & Hardware Protection
 
-All benchmarks run with strict Linux control group resource quotas to prevent system freezing:
-* **CPU Limit**: Capped to **2 Cores** (`--cpus=2`)
-* **RAM Limit**: Capped to **3 GB** (`--memory=3g`)
+All benchmarks feature **configurable resource flags** with safe defaults to prevent system freezing:
+* **Default CPU Limit**: Capped to **2 Cores** (`--cpus 2`)
+* **Default RAM Limit**: Capped to **3 GB** (`--memory 3g`)
+* **Custom Allocation**: You can easily override these on any runner script:
+  ```bash
+  # Run cuVSLAM with 4 CPU cores and 6 GB RAM
+  ./run_cuvslam.sh suedhoehe --cpus 4 --memory 6g
+
+  # Run Master Suite with custom hardware limits
+  ./run_benchmark.sh --algorithm all --dataset all --cpus 4 --memory 8g
+  ```
 * **Process Priority**: Executed with `nice -n 19` (low background priority)
 
 ---

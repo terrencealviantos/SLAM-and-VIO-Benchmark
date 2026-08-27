@@ -10,10 +10,41 @@
 
 set -e
 
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+SCRIPT_DIR="$(cd "$(dirname "$(realpath "${BASH_SOURCE[0]}")")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 
-TARGET="${1:-euroc_MH01}"
+# Defaults (can be overridden via CLI flags or env vars)
+CPUS="${CPUS:-2}"
+MEMORY="${MEMORY:-3g}"
+TARGET="euroc_MH01"
+
+# Parse CLI arguments
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        --cpus)
+            CPUS="$2"
+            shift 2
+            ;;
+        --memory|-m)
+            MEMORY="$2"
+            shift 2
+            ;;
+        -h|--help)
+            echo "Usage: $0 [dataset_target] [--cpus <N>] [--memory <MEM>]"
+            echo ""
+            echo "Arguments:"
+            echo "  dataset_target       Target dataset: euroc_MH01, suedhoehe, or custom directory (default: euroc_MH01)"
+            echo "  --cpus <N>           Max CPU cores for container (default: 2)"
+            echo "  --memory, -m <MEM>   Max RAM for container (default: 3g)"
+            echo "  -h, --help           Show this help message"
+            exit 0
+            ;;
+        *)
+            TARGET="$1"
+            shift
+            ;;
+    esac
+done
 RESULTS_DIR="${REPO_ROOT}/results/${TARGET}/orbslam3"
 DATASETS_DIR="${REPO_ROOT}/datasets"
 ORBSLAM_WS="${REPO_ROOT}/workspace/orbslam3_ws"
@@ -36,11 +67,11 @@ echo " ORB-SLAM3 Benchmark"
 echo " Target Dataset : $DATASET_PATH"
 echo " Output Folder  : $RESULTS_DIR"
 echo " Base Image     : slam-base:latest (ROS 2, OpenCV, Pangolin)"
-echo " Resource Limits: 2 Cores Max, 3 GB RAM Max"
+echo " Resource Limits: ${CPUS} Cores Max, ${MEMORY} RAM Max"
 echo "=========================================================="
 
 docker run --rm \
-  --cpus=2 --memory=3g \
+  --cpus="${CPUS}" --memory="${MEMORY}" \
   -v "${ORBSLAM_WS}":/orbslam3_ws \
   -v "${DATASET_PATH}":/dataset \
   -v "${RESULTS_DIR}":/results \

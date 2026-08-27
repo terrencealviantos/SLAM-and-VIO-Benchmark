@@ -55,7 +55,7 @@ def check_docker_image(img=DOCKER_IMAGE):
 # RUNNERS
 # -----------------------------------------------------------------------------
 
-def run_cuvslam_suedhoehe(dataset_dir, output_dir):
+def run_cuvslam_suedhoehe(dataset_dir, output_dir, cpus="2", memory="3g"):
     print_header("Running NVIDIA cuVSLAM on Suedhoehe Dataset")
     ensure_dir(output_dir)
     
@@ -69,11 +69,12 @@ def run_cuvslam_suedhoehe(dataset_dir, output_dir):
     print("[1/3] Starting cuVSLAM container with GPU passthrough...")
     node_cmd = [
         "docker", "run", "-d", "--name", "cuvslam_node_run",
-        "--cpus=2", "--memory=3g",
+        f"--cpus={cpus}", f"--memory={memory}",
         "--runtime=nvidia", "--gpus", "all", "--net=host", "--ipc=host",
         "-v", f"{output_dir}:/results",
         "-v", f"{bag_dir}:/dataset_dir",
         "-v", f"{isaac_ws}:/workspaces/isaac_ros-dev",
+        "-v", f"{REPO_ROOT}/scripts:/scripts",
         DOCKER_IMAGE,
         "bash", "-c",
         "export LD_LIBRARY_PATH=/workspaces/isaac_ros-dev/install/isaac_ros_visual_slam/share/cuvslam/lib:$LD_LIBRARY_PATH && "
@@ -83,21 +84,16 @@ def run_cuvslam_suedhoehe(dataset_dir, output_dir):
     ]
     subprocess.run(node_cmd, check=True)
     
-    print("[2/3] Waiting for cuVSLAM node to initialize...")
+    print("[2/3] Waiting for cuVSLAM node to initialize and starting recorder...")
     time.sleep(5)
     
-    # Start trajectory saver
+    # Start trajectory saver inside container
     tum_file = os.path.join(output_dir, "cuvslam_tum.txt")
-    saver_cmd = [
-        "docker", "run", "-d", "--name", "cuvslam_saver",
-        "--net=host", "--ipc=host",
-        "-v", f"{output_dir}:/results",
-        "-v", f"{REPO_ROOT}/scripts:/scripts",
-        DOCKER_IMAGE,
+    subprocess.run([
+        "docker", "exec", "-d", "cuvslam_node_run",
         "bash", "-c",
         "source /opt/ros/humble/setup.bash && python3 /scripts/cuvslam_save_trajectory.py /results/cuvslam_tum.txt"
-    ]
-    subprocess.run(saver_cmd, check=True)
+    ], check=True)
     time.sleep(2)
     
     print(f"[3/3] Playing Suedhoehe Dataset Bag from {bag_dir}...")
@@ -215,6 +211,10 @@ def main():
                         default="suedhoehe", help="Dataset to benchmark on")
     parser.add_argument("--sequence", type=str, default="suedhoehe_gps_schnee_02",
                         help="Specific sequence name (e.g. MH_01_easy or suedhoehe_gps_schnee_02)")
+    parser.add_argument("--cpus", type=str, default="2",
+                        help="Max CPU cores allocated to containers (default: 2)")
+    parser.add_argument("--memory", "-m", type=str, default="3g",
+                        help="Max RAM allocated to containers (default: 3g)")
     parser.add_argument("--evaluate", action="store_true", help="Run evo evaluation on existing results")
     parser.add_argument("--plot", action="store_true", help="Generate Gantt charts and timing histograms")
     
@@ -230,7 +230,7 @@ def main():
     if args.algorithm in ["cuvslam", "all"] and args.dataset in ["suedhoehe", "all"]:
         if check_docker_image():
             out_dir = os.path.join(RESULTS_DIR, "suedhoehe", "cuvslam")
-            run_cuvslam_suedhoehe(suedhoehe_dir, out_dir)
+            run_cuvslam_suedhoehe(suedhoehe_dir, out_dir, cpus=args.cpus, memory=args.memory)
             if os.path.exists(suedhoehe_gt):
                 evaluate_kpis(os.path.join(out_dir, "cuvslam_tum.txt"), suedhoehe_gt, out_dir, "cuVSLAM")
                 
