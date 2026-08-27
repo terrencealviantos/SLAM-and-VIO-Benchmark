@@ -49,8 +49,11 @@ Each algorithm has its own standalone runner script in the repository root:
 # Run OpenVINS (MSCKF Filter) on Suedhoehe
 ./run_openvins.sh suedhoehe
 
-# Run ORB-SLAM3 (Stereo-Inertial BA) on EuRoC MH_01
+# Run ORB-SLAM3 Baseline (Stereo-Inertial BA) on EuRoC MH_01
 ./run_orbslam3.sh euroc_MH01
+
+# Run ORB-SLAM3 Hybrid KLT (Dual-Rate Optical Flow SLAM) on EuRoC MH_01
+./run_orbslam3_klt.sh euroc_MH01
 
 # Run Kimera-VIO (GTSAM Factor Graph) on Suedhoehe
 ./run_kimera.sh suedhoehe
@@ -60,7 +63,7 @@ Each algorithm has its own standalone runner script in the repository root:
 
 ### 🖥️ Live GUI & Multi-Terminal Visualizer Mode (`--gui`)
 
-To watch the algorithm compute state estimation live with real-time 3D point clouds, camera streams, and trajectory visualizers:
+To watch any algorithm compute state estimation live with real-time 3D point clouds, camera streams, and trajectory visualizers:
 
 ```bash
 # Launch cuVSLAM with separate terminals for Node, Bag player, and RViz2 GUI:
@@ -69,8 +72,17 @@ To watch the algorithm compute state estimation live with real-time 3D point clo
 # Launch ORB-SLAM3 with live Pangolin 3D SLAM Map Viewer & interactive terminal:
 ./run_orbslam3.sh euroc_MH01 --gui
 
+# Launch ORB-SLAM3 Hybrid KLT with Pangolin 3D GUI:
+./run_orbslam3_klt.sh euroc_MH01 --gui
+
 # Launch OpenVINS with multi-terminal RViz2 MSCKF visualizer:
 ./run_openvins.sh suedhoehe --gui
+
+# Launch Kimera-VIO with multi-terminal RViz2 Factor Graph & Mesh visualizer:
+./run_kimera.sh suedhoehe --gui
+
+# Master runner in GUI mode:
+./run_benchmark.sh --algorithm cuvslam --gui
 ```
 
 When `--gui` is passed:

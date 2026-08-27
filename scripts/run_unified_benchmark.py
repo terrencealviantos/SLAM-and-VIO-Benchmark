@@ -215,6 +215,8 @@ def main():
                         help="Max CPU cores allocated to containers (default: 2)")
     parser.add_argument("--memory", "-m", type=str, default="3g",
                         help="Max RAM allocated to containers (default: 3g)")
+    parser.add_argument("--gui", "--view", "-g", action="store_true",
+                        help="Open live GUI visualizer (RViz2 / Pangolin) and separate terminals")
     parser.add_argument("--evaluate", action="store_true", help="Run evo evaluation on existing results")
     parser.add_argument("--plot", action="store_true", help="Generate Gantt charts and timing histograms")
     
@@ -223,21 +225,48 @@ def main():
     if args.plot:
         generate_comparative_plots()
         return
-        
-    suedhoehe_dir = os.path.join(DATASETS_DIR, "suedhoehe_gps_schnee_02")
-    suedhoehe_gt = os.path.join(suedhoehe_dir, "gps_trajectory.txt")
-    
-    if args.algorithm in ["cuvslam", "all"] and args.dataset in ["suedhoehe", "all"]:
-        if check_docker_image():
-            out_dir = os.path.join(RESULTS_DIR, "suedhoehe", "cuvslam")
-            run_cuvslam_suedhoehe(suedhoehe_dir, out_dir, cpus=args.cpus, memory=args.memory)
-            if os.path.exists(suedhoehe_gt):
-                evaluate_kpis(os.path.join(out_dir, "cuvslam_tum.txt"), suedhoehe_gt, out_dir, "cuVSLAM")
-                
+
+    gui_flag = ["--gui"] if args.gui else []
+    extra_flags = ["--cpus", args.cpus, "--memory", args.memory] + gui_flag
+
+    target_map = {
+        "suedhoehe": "suedhoehe",
+        "euroc": "euroc_MH01",
+        "tum": "tum",
+        "all": "suedhoehe"
+    }
+    target_ds = target_map.get(args.dataset, "suedhoehe")
+
+    if args.algorithm in ["cuvslam", "all"]:
+        script = os.path.join(REPO_ROOT, "scripts", "run_cuvslam.sh")
+        print_header("Invoking cuVSLAM Runner")
+        subprocess.run([script, target_ds] + extra_flags)
+
+    if args.algorithm in ["openvins", "all"]:
+        script = os.path.join(REPO_ROOT, "scripts", "run_openvins.sh")
+        print_header("Invoking OpenVINS Runner")
+        subprocess.run([script, target_ds] + extra_flags)
+
+    if args.algorithm in ["orbslam3", "all"]:
+        script = os.path.join(REPO_ROOT, "scripts", "run_orbslam3.sh")
+        print_header("Invoking ORB-SLAM3 Runner")
+        subprocess.run([script, target_ds] + extra_flags)
+
     if args.algorithm in ["orbslam3_klt", "all"]:
-        out_dir = os.path.join(RESULTS_DIR, "orbslam3_klt")
-        euroc_dir = os.path.join(DATASETS_DIR, "Euroc", "machine_hall", "MH_01_easy")
-        run_orbslam3_klt("EuRoC MH_01_easy", euroc_dir, out_dir)
+        script = os.path.join(REPO_ROOT, "scripts", "run_orbslam3_klt.sh")
+        print_header("Invoking ORB-SLAM3 Hybrid KLT Runner")
+        subprocess.run([script, target_ds] + extra_flags)
+
+    if args.algorithm in ["kimera", "all"]:
+        script = os.path.join(REPO_ROOT, "scripts", "run_kimera.sh")
+        print_header("Invoking Kimera-VIO Runner")
+        subprocess.run([script, target_ds] + extra_flags)
+
+    if args.evaluate:
+        suedhoehe_gt = os.path.join(DATASETS_DIR, "suedhoehe_gps_schnee_02", "gps_trajectory.txt")
+        cuvslam_tum = os.path.join(RESULTS_DIR, "suedhoehe", "cuvslam", "cuvslam_tum.txt")
+        if os.path.exists(cuvslam_tum) and os.path.exists(suedhoehe_gt):
+            evaluate_kpis(cuvslam_tum, suedhoehe_gt, os.path.join(RESULTS_DIR, "suedhoehe", "cuvslam"), "cuVSLAM")
 
     print("\nBenchmark orchestrator finished!")
 
