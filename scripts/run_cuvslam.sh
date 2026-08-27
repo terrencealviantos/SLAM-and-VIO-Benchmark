@@ -55,19 +55,22 @@ done
 RESULTS_DIR="${REPO_ROOT}/results/${TARGET}/cuvslam"
 DATASETS_DIR="${REPO_ROOT}/datasets"
 ISAAC_WS="${REPO_ROOT}/workspace/isaac_ros_ws"
-RVIZ_CFG="/workspaces/isaac_ros-dev/src/isaac_ros_visual_slam/isaac_ros_visual_slam/rviz/default.cfg.rviz"
+RVIZ_DIR="${REPO_ROOT}/scripts/rviz"
 
 mkdir -p "$RESULTS_DIR"
 
 if [ "$TARGET" == "suedhoehe" ]; then
     BAG_PATH="${DATASETS_DIR}/suedhoehe_gps_schnee_02"
     LAUNCH_FILE="isaac_ros_visual_slam_suedhoehe.launch.py"
+    RVIZ_FILE="/rviz_cfg/suedhoehe_rviz.rviz"
 elif [ "$TARGET" == "euroc_MH01" ]; then
     BAG_PATH="${DATASETS_DIR}/Euroc/machine_hall/MH_01_easy/MH_01_easy_ros2"
     LAUNCH_FILE="isaac_ros_visual_slam_euroc.launch.py"
+    RVIZ_FILE="/rviz_cfg/euroc_rviz.rviz"
 else
     BAG_PATH="$TARGET"
     LAUNCH_FILE="isaac_ros_visual_slam_suedhoehe.launch.py"
+    RVIZ_FILE="/rviz_cfg/suedhoehe_rviz.rviz"
 fi
 
 BAG_DIR="$(dirname "$(realpath "$BAG_PATH")")"
@@ -114,8 +117,9 @@ if [ "$ENABLE_GUI" = true ]; then
         --net=host --ipc=host \
         -e DISPLAY=${DISPLAY} -e QT_X11_NO_MITSHM=1 -v /tmp/.X11-unix:/tmp/.X11-unix \
         -v '${ISAAC_WS}':/workspaces/isaac_ros-dev \
+        -v '${RVIZ_DIR}':/rviz_cfg \
         slam-base:latest \
-        bash -c 'source /opt/ros/humble/setup.bash && rviz2 -d ${RVIZ_CFG}'"
+        bash -c 'source /opt/ros/humble/setup.bash && rviz2 -d ${RVIZ_FILE}'"
 
     sleep 2
 
