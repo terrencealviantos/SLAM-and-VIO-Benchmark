@@ -176,7 +176,6 @@ Visualization Manager:
         Head Length: 0.1
         Head Radius: 0.05
         Shaft Length: 0.2
-        Shaft Radius: 0.02
         Value: Arrow
       Topic:
         Depth: 5
@@ -184,6 +183,84 @@ Visualization Manager:
         History Policy: Keep Last
         Reliability Policy: System Default
         Value: /visual_slam/tracking/odometry
+      Value: true
+    - Angle Tolerance: 0.1
+      Class: rviz_default_plugins/Odometry
+      Covariance:
+        Orientation:
+          Alpha: 0.5
+          Color: 255; 255; 127
+          Color Style: Unique
+          Frame: Local
+          Offset: 1
+          Scale: 1
+          Value: true
+        Position:
+          Alpha: 0.3
+          Color: 0; 255; 127
+          Color Style: Unique
+          Frame: Local
+          Offset: 1
+          Scale: 1
+          Value: true
+        Value: true
+      Enabled: true
+      Head Length: 0.3
+      Head Radius: 0.1
+      Keep: 1000
+      Length: 0.5
+      Name: Kimera Odometry
+      Position Tolerance: 0.1
+      Radius: 0.05
+      Shaft Length: 0.5
+      Shaft Radius: 0.02
+      Shape:
+        Alpha: 1
+        Axes Length: 0.3
+        Axes Radius: 0.02
+        Color: 0; 255; 127
+        Head Length: 0.1
+        Head Radius: 0.05
+        Shaft Length: 0.2
+        Shaft Radius: 0.02
+        Value: Axes
+      Topic:
+        Depth: 5
+        Durability Policy: Volatile
+        History Policy: Keep Last
+        Reliability Policy: System Default
+        Value: /kimera_vio_ros/odometry
+      Value: true
+    - Alpha: 1
+      Autocompute Intensity Bounds: true
+      Autocompute Value Bounds:
+        Max Value: 10
+        Min Value: -10
+        Value: true
+      Axis: Z
+      Channel Name: intensity
+      Class: rviz_default_plugins/PointCloud2
+      Color: 255; 170; 0
+      Color Transformer: FlatColor
+      Decay Time: 0
+      Enabled: true
+      Invert Rainbow: false
+      Max Color: 255; 255; 255
+      Min Color: 0; 0; 0
+      Name: Kimera PointCloud
+      Position Transformer: XYZ
+      Selectable: true
+      Size (Pixels): 3
+      Size (m): 0.05
+      Style: Points
+      Topic:
+        Depth: 5
+        Durability Policy: Volatile
+        History Policy: Keep Last
+        Reliability Policy: System Default
+        Value: /kimera_vio_ros/time_horizon_pointcloud
+      Use Fixed Frame: true
+      Use rainbow: false
       Value: true
   Enabled: true
   Global Options:

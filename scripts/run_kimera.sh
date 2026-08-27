@@ -64,23 +64,32 @@ if [ "$TARGET" == "suedhoehe" ]; then
     PARAMS_PATH="${REPO_ROOT}/suedhoehe_kimera_params"
     DATASET_NAME="suedhoehe"
     RVIZ_FILE="/rviz_cfg/suedhoehe_rviz.rviz"
+    LEFT_TOPIC="/camera/infra1/image_rect_raw"
+    RIGHT_TOPIC="/camera/infra2/image_rect_raw"
+    IMU_TOPIC="/camera/imu"
 elif [ "$TARGET" == "euroc_MH01" ]; then
     BAG_PATH="${DATASETS_DIR}/Euroc/machine_hall/MH_01_easy/MH_01_easy_ros2"
-    PARAMS_PATH="${REPO_ROOT}/workspace/kimera_ws/src/Kimera-VIO/params/Euroc"
+    PARAMS_PATH="${REPO_ROOT}/workspace/kimera_ws/src/Kimera-VIO-ROS2/kimera_vio_ros/params/Euroc"
     DATASET_NAME="Euroc"
     RVIZ_FILE="/rviz_cfg/euroc_rviz.rviz"
+    LEFT_TOPIC="/cam0/image_raw"
+    RIGHT_TOPIC="/cam1/image_raw"
+    IMU_TOPIC="/imu0"
 else
     BAG_PATH="$TARGET"
     PARAMS_PATH="${REPO_ROOT}/suedhoehe_kimera_params"
     DATASET_NAME="suedhoehe"
     RVIZ_FILE="/rviz_cfg/suedhoehe_rviz.rviz"
+    LEFT_TOPIC="/camera/infra1/image_rect_raw"
+    RIGHT_TOPIC="/camera/infra2/image_rect_raw"
+    IMU_TOPIC="/camera/imu"
 fi
 
 echo "=========================================================="
 echo " Kimera-VIO Benchmark"
 echo " Target Dataset : $BAG_PATH"
 echo " Output Folder  : $RESULTS_DIR"
-echo " Base Image     : slam-base:latest (ROS 2, OpenCV, GTSAM)"
+echo " Base Image     : kimera:latest (ROS 2, OpenCV, GTSAM, iSAM2)"
 echo " Resource Limits: ${CPUS} Cores Max, ${MEMORY} RAM Max"
 echo " GUI Viewer Mode: $ENABLE_GUI"
 echo "=========================================================="
@@ -90,6 +99,10 @@ BAG_NAME="$(basename "$BAG_PATH")"
 
 # Allow X11 access for Docker GUI
 xhost +local:root 2>/dev/null || xhost + 2>/dev/null || true
+
+# Cleanup previous instances
+docker kill kimera_node kimera_rviz kimera_player 2>/dev/null || true
+docker rm -f kimera_node kimera_rviz kimera_player 2>/dev/null || true
 
 if [ "$ENABLE_GUI" = true ]; then
     echo "[INFO] Multi-Terminal GUI Mode Enabled: Opening Kimera-VIO Node, RViz2, and Bag Player..."
@@ -101,10 +114,21 @@ if [ "$ENABLE_GUI" = true ]; then
         --net=host --ipc=host \
         -v '${BAG_DIR}':/dataset_dir \
         -v '${RESULTS_DIR}':/output \
-        slam-base:latest \
-        bash -c 'source /opt/ros/humble/setup.bash && if [ -f /opt/ros/wrapper_ws/install/setup.bash ]; then source /opt/ros/wrapper_ws/install/setup.bash; ros2 launch kimera_vio_ros kimera_vio_ros.launch.xml dataset_name:=${DATASET_NAME} log_output:=true; fi'"
+        -v '${PARAMS_PATH}':/params \
+        -v '${REPO_ROOT}/scripts':/scripts \
+        kimera:latest \
+        bash -c 'source /opt/wrapper_ws/install/setup.bash && \
+                 (python3 /scripts/kimera_save_trajectory.py /output/kimera_tum.txt &) && \
+                 ros2 launch kimera_vio_ros kimera_vio_ros.launch.xml \
+                   params_folder:=/params \
+                   parallel:=false \
+                   use_camera_info:=false \
+                   topic.left.image:=${LEFT_TOPIC} \
+                   topic.right.image:=${RIGHT_TOPIC} \
+                   topic.imu.data:=${IMU_TOPIC} \
+                   log_output:=true'"
 
-    sleep 3
+    sleep 4
 
     # 2. Start RViz2 in Terminal 2
     "${REPO_ROOT}/scripts/launch_terminal.sh" "[2] RViz2 Kimera Viewer" \
@@ -123,26 +147,47 @@ if [ "$ENABLE_GUI" = true ]; then
         --net=host --ipc=host \
         -v '${BAG_DIR}':/dataset_dir \
         slam-base:latest \
-        bash -c 'source /opt/ros/humble/setup.bash && ros2 bag play /dataset_dir/${BAG_NAME} --clock 200'"
+        bash -c 'source /opt/ros/humble/setup.bash && ros2 bag play /dataset_dir/${BAG_NAME}'"
 
 else
-    docker run --rm \
+    echo "[1/3] Starting Kimera-VIO container..."
+    docker run -d --name kimera_node \
       --cpus="${CPUS}" --memory="${MEMORY}" \
+      --net=host --ipc=host \
       -v "${BAG_DIR}":/dataset_dir \
       -v "${RESULTS_DIR}":/output \
+      -v "${PARAMS_PATH}":/params \
+      -v "${REPO_ROOT}/scripts":/scripts \
+      kimera:latest \
+      bash -c "source /opt/wrapper_ws/install/setup.bash && \
+               (python3 /scripts/kimera_save_trajectory.py /output/kimera_tum.txt &) && \
+               ros2 launch kimera_vio_ros kimera_vio_ros.launch.xml \
+                 params_folder:=/params \
+                 parallel:=false \
+                 use_camera_info:=false \
+                 topic.left.image:=${LEFT_TOPIC} \
+                 topic.right.image:=${RIGHT_TOPIC} \
+                 topic.imu.data:=${IMU_TOPIC} \
+                 log_output:=true"
+
+    echo "[2/3] Waiting for node to initialize..."
+    sleep 4
+
+    echo "[3/3] Playing dataset bag..."
+    docker run --rm --name kimera_player \
+      --net=host --ipc=host \
+      -v "${BAG_DIR}":/dataset_dir \
       slam-base:latest \
-      bash -c "source /opt/ros/humble/setup.bash && \
-               if [ -f /opt/ros/wrapper_ws/install/setup.bash ]; then \
-                 source /opt/ros/wrapper_ws/install/setup.bash; \
-                 ros2 launch kimera_vio_ros kimera_vio_ros.launch.xml dataset_name:=${DATASET_NAME} log_output:=true & \
-                 K_PID=\$! && sleep 3 && \
-                 ros2 bag play /dataset_dir/${BAG_NAME} --clock 200 && sleep 3 && \
-                 cp -r /opt/ros/wrapper_ws/install/kimera_vio_ros/share/kimera_vio_ros/output_logs/* /output/ 2>/dev/null || true && \
-                 kill \$K_PID 2>/dev/null || true; \
-               fi"
+      bash -c "source /opt/ros/humble/setup.bash && ros2 bag play /dataset_dir/${BAG_NAME}"
+
+    sleep 3
+
+    # Cleanup
+    docker kill kimera_node 2>/dev/null || true
+    docker rm -f kimera_node 2>/dev/null || true
 
     echo "=========================================================="
     echo " Kimera-VIO run completed!"
-    echo " Results saved to: ${RESULTS_DIR}"
+    echo " Results saved to: ${RESULTS_DIR}/kimera_tum.txt"
     echo "=========================================================="
 fi
