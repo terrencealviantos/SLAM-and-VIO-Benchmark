@@ -118,7 +118,6 @@ if [ "$ENABLE_GUI" = true ]; then
         -v '${REPO_ROOT}/scripts':/scripts \
         kimera:latest \
         bash -c 'source /opt/wrapper_ws/install/setup.bash && \
-                 (python3 /scripts/kimera_save_trajectory.py /output/kimera_tum.txt &) && \
                  ros2 launch kimera_vio_ros kimera_vio_ros.launch.xml \
                    params_folder:=/params \
                    parallel:=false \
@@ -126,9 +125,9 @@ if [ "$ENABLE_GUI" = true ]; then
                    use_camera_info:=false \
                    log_output:=true \
                    log_output_path:=/output/ \
-                   topic.left.image:=${LEFT_TOPIC} \
-                   topic.right.image:=${RIGHT_TOPIC} \
-                   topic.imu.data:=${IMU_TOPIC}'"
+                   cam_topic.left:=${LEFT_TOPIC} \
+                   cam_topic.right:=${RIGHT_TOPIC} \
+                   imu_topic:=${IMU_TOPIC}'"
 
     sleep 4
 
@@ -162,7 +161,6 @@ else
       -v "${REPO_ROOT}/scripts":/scripts \
       kimera:latest \
       bash -c "source /opt/wrapper_ws/install/setup.bash && \
-               (python3 /scripts/kimera_save_trajectory.py /output/kimera_tum.txt &) && \
                ros2 launch kimera_vio_ros kimera_vio_ros.launch.xml \
                  params_folder:=/params \
                  parallel:=false \
@@ -170,9 +168,9 @@ else
                  use_camera_info:=false \
                  log_output:=true \
                  log_output_path:=/output/ \
-                 topic.left.image:=${LEFT_TOPIC} \
-                 topic.right.image:=${RIGHT_TOPIC} \
-                 topic.imu.data:=${IMU_TOPIC}"
+                 cam_topic.left:=${LEFT_TOPIC} \
+                 cam_topic.right:=${RIGHT_TOPIC} \
+                 imu_topic:=${IMU_TOPIC}"
 
     echo "[2/3] Waiting for node to initialize..."
     sleep 4
@@ -189,6 +187,10 @@ else
     # Cleanup
     docker kill kimera_node 2>/dev/null || true
     docker rm -f kimera_node 2>/dev/null || true
+
+    # Fix permissions and convert output trajectory to standard TUM format
+    docker run --rm -v "${RESULTS_DIR}":/output slam-base:latest chmod -R 777 /output 2>/dev/null || true
+    python3 "${REPO_ROOT}/scripts/convert_kimera_to_tum.py" "${RESULTS_DIR}/traj_vio.csv" "${RESULTS_DIR}/kimera_tum.txt" 2>/dev/null || true
 
     echo "=========================================================="
     echo " Kimera-VIO run completed!"
