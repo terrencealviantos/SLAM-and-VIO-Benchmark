@@ -109,7 +109,7 @@ if [ "$ENABLE_GUI" = true ]; then
 
     # 1. Start Kimera-VIO in Terminal 1
     "${REPO_ROOT}/scripts/launch_terminal.sh" "[1] Kimera-VIO Node" \
-      "docker run --rm --name kimera_node \
+      "docker run --rm --name kimera_node --entrypoint '' \
         --cpus=${CPUS} --memory=${MEMORY} \
         --net=host --ipc=host \
         -v '${BAG_DIR}':/dataset_dir \
@@ -134,7 +134,7 @@ if [ "$ENABLE_GUI" = true ]; then
 
     # 2. Start RViz2 in Terminal 2
     "${REPO_ROOT}/scripts/launch_terminal.sh" "[2] RViz2 Kimera Viewer" \
-      "docker run --rm --name kimera_rviz \
+      "docker run --rm --name kimera_rviz --entrypoint '' \
         --net=host --ipc=host \
         -e DISPLAY=${DISPLAY} -e QT_X11_NO_MITSHM=1 -v /tmp/.X11-unix:/tmp/.X11-unix \
         -v '${RVIZ_DIR}':/rviz_cfg \
@@ -145,7 +145,7 @@ if [ "$ENABLE_GUI" = true ]; then
 
     # 3. Start Rosbag Player in Terminal 3
     "${REPO_ROOT}/scripts/launch_terminal.sh" "[3] Rosbag Player" \
-      "docker run --rm --name kimera_player -it \
+      "docker run --rm --name kimera_player --entrypoint '' -it \
         --net=host --ipc=host \
         -v '${BAG_DIR}':/dataset_dir \
         slam-base:latest \
@@ -153,7 +153,7 @@ if [ "$ENABLE_GUI" = true ]; then
 
 else
     echo "[1/3] Starting Kimera-VIO container..."
-    docker run -d --name kimera_node \
+    docker run -d --name kimera_node --entrypoint "" \
       --cpus="${CPUS}" --memory="${MEMORY}" \
       --net=host --ipc=host \
       -v "${BAG_DIR}":/dataset_dir \
@@ -178,7 +178,7 @@ else
     sleep 4
 
     echo "[3/3] Playing dataset bag..."
-    docker run --rm --name kimera_player \
+    docker run --rm --name kimera_player --entrypoint "" \
       --net=host --ipc=host \
       -v "${BAG_DIR}":/dataset_dir \
       slam-base:latest \

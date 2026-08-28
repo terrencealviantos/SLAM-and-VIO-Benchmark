@@ -93,7 +93,7 @@ if [ "$ENABLE_GUI" = true ]; then
 
     # 1. Start OpenVINS in Terminal 1
     "${REPO_ROOT}/scripts/launch_terminal.sh" "[1] OpenVINS MSCKF Node" \
-      "docker run --rm --name openvins_node \
+      "docker run --rm --name openvins_node --entrypoint '' \
         --cpus=${CPUS} --memory=${MEMORY} \
         --net=host --ipc=host \
         -v '${CATKIN_WS}':/catkin_ws \
@@ -105,7 +105,7 @@ if [ "$ENABLE_GUI" = true ]; then
 
     # 2. Start RViz2 in Terminal 2
     "${REPO_ROOT}/scripts/launch_terminal.sh" "[2] RViz2 OpenVINS Viewer" \
-      "docker run --rm --name openvins_rviz \
+      "docker run --rm --name openvins_rviz --entrypoint '' \
         --net=host --ipc=host \
         -e DISPLAY=${DISPLAY} -e QT_X11_NO_MITSHM=1 -v /tmp/.X11-unix:/tmp/.X11-unix \
         -v '${CATKIN_WS}':/catkin_ws \
@@ -116,14 +116,14 @@ if [ "$ENABLE_GUI" = true ]; then
 
     # 3. Start Rosbag Player in Terminal 3
     "${REPO_ROOT}/scripts/launch_terminal.sh" "[3] Rosbag Player" \
-      "docker run --rm --name openvins_player -it \
+      "docker run --rm --name openvins_player --entrypoint '' -it \
         --net=host --ipc=host \
         -v '${BAG_DIR}':/dataset_dir \
         slam-base:latest \
         bash -c 'source /opt/ros/humble/setup.bash && ros2 bag play /dataset_dir/${BAG_NAME} --clock 200'"
 
 else
-    docker run --rm \
+    docker run --rm --entrypoint "" \
       --cpus="${CPUS}" --memory="${MEMORY}" \
       -v "${CATKIN_WS}":/catkin_ws \
       -v "${BAG_DIR}":/dataset_dir \

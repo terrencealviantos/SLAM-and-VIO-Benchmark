@@ -84,7 +84,7 @@ xhost +local:root 2>/dev/null || xhost + 2>/dev/null || true
 if [ "$ENABLE_GUI" = true ]; then
     echo "[INFO] Multi-Terminal GUI Mode Enabled: Launching Hybrid KLT ORB-SLAM3 with live Pangolin 3D Viewer..."
     "${REPO_ROOT}/scripts/launch_terminal.sh" "ORB-SLAM3 KLT [Pangolin 3D SLAM GUI]" \
-      "docker run --rm -it \
+      "docker run --rm --entrypoint '' -it \
         --cpus=${CPUS} --memory=${MEMORY} \
         --net=host --ipc=host \
         -e DISPLAY=${DISPLAY} -e QT_X11_NO_MITSHM=1 -v /tmp/.X11-unix:/tmp/.X11-unix \
@@ -100,7 +100,7 @@ if [ "$ENABLE_GUI" = true ]; then
                      /dataset /dataset/timestamps.txt /results/orbslam3_klt_raw.txt; \
                  fi'"
 else
-    docker run --rm \
+    docker run --rm --entrypoint "" \
       --cpus="${CPUS}" --memory="${MEMORY}" \
       -v "${ORBSLAM_WS}":/orbslam3_ws \
       -v "${DATASET_PATH}":/dataset \
