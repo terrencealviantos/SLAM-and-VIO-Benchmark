@@ -121,6 +121,7 @@ if [ "$ENABLE_GUI" = true ]; then
                  ros2 launch kimera_vio_ros kimera_vio_ros.launch.xml \
                    params_folder:=/params \
                    parallel:=false \
+                   rectified:=false \
                    use_sim_time:=false \
                    use_camera_info:=false \
                    log_output:=true \
@@ -138,7 +139,7 @@ if [ "$ENABLE_GUI" = true ]; then
         -e DISPLAY=${DISPLAY} -e QT_X11_NO_MITSHM=1 -v /tmp/.X11-unix:/tmp/.X11-unix \
         -v '${RVIZ_DIR}':/rviz_cfg \
         slam-base:latest \
-        bash -c 'source /opt/ros/humble/setup.bash && rviz2 -d ${RVIZ_FILE}'"
+        bash -c 'source /opt/ros/humble/setup.bash && (ros2 run tf2_ros static_transform_publisher 0 0 0 0 0 0 odom world &) && rviz2 -d ${RVIZ_FILE}'"
 
     sleep 2
 
@@ -164,6 +165,7 @@ else
                ros2 launch kimera_vio_ros kimera_vio_ros.launch.xml \
                  params_folder:=/params \
                  parallel:=false \
+                 rectified:=false \
                  use_sim_time:=false \
                  use_camera_info:=false \
                  log_output:=true \
