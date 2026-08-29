@@ -36,27 +36,27 @@ To guarantee mathematical reproducibility and prevent dependency conflicts acros
 
 ---
 
-## ⚡ Quickstart: Running Benchmarks
+## ⚡ Quickstart: Unified Benchmark Runner
+
+The entire benchmark suite is controlled by a single unified script in the repository root: **`./run_benchmark.sh`**.
 
 ### 1. Run a Single Algorithm (One Command)
 
-Each algorithm has its own standalone runner script in the `scripts/` folder:
-
 ```bash
 # Run NVIDIA cuVSLAM (GPU-Accelerated) on Suedhoehe
-./scripts/run_cuvslam.sh suedhoehe
+./run_benchmark.sh cuvslam suedhoehe
 
 # Run OpenVINS (MSCKF Filter) on Suedhoehe
-./scripts/run_openvins.sh suedhoehe
+./run_benchmark.sh openvins suedhoehe
 
 # Run ORB-SLAM3 Baseline (Stereo-Inertial BA) on EuRoC MH_01
-./scripts/run_orbslam3.sh euroc_MH01
+./run_benchmark.sh orbslam3 euroc
 
 # Run ORB-SLAM3 Hybrid KLT (Dual-Rate Optical Flow SLAM) on EuRoC MH_01
-./scripts/run_orbslam3_klt.sh euroc_MH01
+./run_benchmark.sh orbslam3_klt euroc
 
 # Run Kimera-VIO (GTSAM Factor Graph) on Suedhoehe
-./scripts/run_kimera.sh suedhoehe
+./run_benchmark.sh kimera suedhoehe
 ```
 
 ---
@@ -66,23 +66,20 @@ Each algorithm has its own standalone runner script in the `scripts/` folder:
 To watch any algorithm compute state estimation live with real-time 3D point clouds, camera streams, and trajectory visualizers:
 
 ```bash
-# Launch cuVSLAM with separate terminals for Node, Bag player, and RViz2 GUI:
-./scripts/run_cuvslam.sh suedhoehe --gui
+# Launch cuVSLAM with live RViz2 GUI + separate terminal windows:
+./run_benchmark.sh cuvslam suedhoehe --gui
 
-# Launch ORB-SLAM3 with live Pangolin 3D SLAM Map Viewer & interactive terminal:
-./scripts/run_orbslam3.sh euroc_MH01 --gui
+# Launch ORB-SLAM3 Baseline with live Pangolin 3D SLAM Map Viewer:
+./run_benchmark.sh orbslam3 euroc --gui
 
 # Launch ORB-SLAM3 Hybrid KLT with Pangolin 3D GUI:
-./scripts/run_orbslam3_klt.sh euroc_MH01 --gui
+./run_benchmark.sh orbslam3_klt euroc --gui
 
-# Launch OpenVINS with multi-terminal RViz2 MSCKF visualizer:
-./scripts/run_openvins.sh suedhoehe --gui
+# Launch OpenVINS with multi-terminal RViz2 visualizer:
+./run_benchmark.sh openvins suedhoehe --gui
 
 # Launch Kimera-VIO with multi-terminal RViz2 Factor Graph & Mesh visualizer:
-./scripts/run_kimera.sh suedhoehe --gui
-
-# Master runner in GUI mode:
-./scripts/run_benchmark.sh --algorithm cuvslam --gui
+./run_benchmark.sh kimera suedhoehe --gui
 ```
 
 When `--gui` is passed:
@@ -92,19 +89,17 @@ When `--gui` is passed:
 
 ---
 
-### 2. Master Benchmark Suite
-
-Run any combination of algorithms and datasets with automated trajectory recording and `evo` evaluation:
+### 2. Batch Benchmarks & Evaluation
 
 ```bash
 # View all available CLI options
-./scripts/run_benchmark.sh --help
+./run_benchmark.sh --help
 
-# Run all algorithms across all datasets
-./scripts/run_benchmark.sh --algorithm all --dataset all
+# Run all 5 algorithms sequentially across datasets
+./run_benchmark.sh all all
 
 # Run evo evaluation on existing generated trajectories
-./scripts/run_benchmark.sh --evaluate
+./run_benchmark.sh --evaluate
 ```
 
 ---
