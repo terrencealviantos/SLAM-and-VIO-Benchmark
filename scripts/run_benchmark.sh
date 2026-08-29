@@ -19,8 +19,9 @@
 
 set -e
 
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-PYTHON_RUNNER="${SCRIPT_DIR}/scripts/run_unified_benchmark.py"
+SCRIPT_DIR="$(cd "$(dirname "$(realpath "${BASH_SOURCE[0]}")")" && pwd)"
+REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+PYTHON_RUNNER="${SCRIPT_DIR}/run_unified_benchmark.py"
 
 # Make sure runner is executable
 chmod +x "$PYTHON_RUNNER" 2>/dev/null || true
@@ -35,7 +36,7 @@ fi
 echo "=========================================================="
 echo "       SLAM & VIO Benchmark Suite — Master Runner         "
 echo "=========================================================="
-echo " Repository: ${SCRIPT_DIR}"
+echo " Repository: ${REPO_ROOT}"
 echo " Date/Time : $(date)"
 echo " GPU Device: $(nvidia-smi --query-gpu=name --format=csv,noheader 2>/dev/null || echo 'No NVIDIA GPU detected')"
 echo "=========================================================="
