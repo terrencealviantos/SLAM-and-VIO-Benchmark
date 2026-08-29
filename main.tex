@@ -94,7 +94,7 @@ This monograph delivers an exhaustive, multi-dimensional empirical benchmarking 
     \item \textbf{NVIDIA cuVSLAM:} An ultra-high-throughput, GPU-accelerated visual-inertial SLAM engine executing massively parallel optical flow tracking, asynchronous bundle adjustment, and GPU pose graph optimization within the NVIDIA Isaac ROS ecosystem.
 \end{enumerate}
 
-Our experimental evaluation is conducted across two complementary testing grounds: (i) the standardized, high-speed micro-aerial vehicle indoor benchmark (\textbf{EuRoC MAV Machine Hall MH\_01\_easy}) equipped with millimeter-accurate Vicon motion capture and Leica laser tracker ground truth; and (ii) a challenging real-world outdoor ground vehicle dataset (\textbf{Suedhoehe GPS Schnee 02}) characterized by severe visual degradation, dynamic snow precipitation, low-texture asphalt surfaces, extreme lighting transitions, long-range scene structures ($> \SI{50}{\meter}$), and RTK-GPS ground truth.
+Our experimental evaluation is conducted across two complementary testing grounds: (i) the standardized, high-speed micro-aerial vehicle indoor benchmark (\textbf{EuRoC MAV Machine Hall MH\_01\_easy}) equipped with millimeter-accurate Vicon motion capture and Leica laser tracker ground truth; and (ii) a challenging real-world outdoor ground vehicle dataset (\textbf{Suedhoehe GPS Schnee 02}) characterized by severe visual degradation, uniform low-texture snow blankets, overcast lighting, long-range scene structures ($> \SI{30}{\meter}$ to $\SI{50}{\meter}$), and RTK-GPS ground truth.
 
 Through scoped, microsecond-level software timers (\path{std::chrono::high_resolution_clock}), multi-thread profiling, trajectory accuracy quantification via evo (Absolute Pose Error ATE, Relative Pose Error RPE), and multi-thread Gantt concurrency analysis, we uncover critical algorithmic trade-offs:
 \begin{itemize}
@@ -619,8 +619,8 @@ We benchmark sequence \textbf{MH\_01\_easy}: trajectory length $\SI{80.6}{\meter
 \subsection{Suedhoehe Outdoor Winter Snow Dataset}
 To test algorithmic limits under severe real-world environmental degradation, we benchmark the \textbf{Suedhoehe GPS Schnee 02} sequence:
 \begin{itemize}
-    \item \textbf{Environment:} Outdoor suburban roadway covered in fresh snow and ice.
-    \item \textbf{Visual Degradation:} Low-texture snow surfaces, falling dynamic snowflakes, severe direct sunlight reflections, and distant background structures ($> \SI{50}{\meter}$).
+    \item \textbf{Environment:} Outdoor winter landscape and suburban path covered in a blanket of fresh snow.
+    \item \textbf{Visual Degradation:} Severe low-texture regions on the uniform white snow ground, low-contrast overcast lighting conditions, and distant background structures (bare winter trees and shrubbery $> \SI{30}{\meter}$ to $\SI{50}{\meter}$ away).
     \item \textbf{Ground Truth:} Dual-antenna RTK-GPS/INS geodetic navigation system providing centimeter-accurate positional ground truth.
 \end{itemize}
 

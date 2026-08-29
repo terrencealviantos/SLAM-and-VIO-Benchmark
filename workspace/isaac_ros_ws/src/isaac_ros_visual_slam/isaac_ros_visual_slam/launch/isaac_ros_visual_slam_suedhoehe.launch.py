@@ -43,7 +43,7 @@ def generate_launch_description():
             'enable_slam_visualization': True,
             'enable_landmarks_view': True,
             'enable_observations_view': True,
-            'override_publishing_stamp': True,
+            'override_publishing_stamp': False,
             'image_qos': 'SENSOR_DATA',
             'imu_qos': 'SENSOR_DATA',
             'sync_matching_threshold_ms': 15.0,
