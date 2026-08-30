@@ -160,6 +160,22 @@ if [ "$DO_EVALUATE" = true ] && [ -z "$ALGORITHM" ]; then
     exit 0
 fi
 
+# Normalize algorithm & dataset names
+case "$DATASET" in
+    suedhoehe*|suehoehe*|suedhohe*|snow*|d435*)
+        DATASET="suedhoehe"
+        ;;
+    euroc*|mh01*|MH01*|MH_01*)
+        DATASET="euroc"
+        ;;
+    all)
+        DATASET="all"
+        ;;
+    *)
+        DATASET="suedhoehe"
+        ;;
+esac
+
 # Fallback defaults
 ALGORITHM="${ALGORITHM:-cuvslam}"
 DATASET="${DATASET:-suedhoehe}"
@@ -263,7 +279,7 @@ run_cuvslam() {
 run_openvins() {
     local target_dataset="$1"
     local results_dir="${REPO_ROOT}/results/suedhoehe/openvins"
-    local catkin_ws="${REPO_ROOT}/workspace/catkin_ws"
+    local catkin_ws="${REPO_ROOT}/workspace/catkin_ws_ov"
     local bag_dir="${REPO_ROOT}/datasets"
     local bag_name="suedhoehe_gps_schnee_02"
     local config_path="/catkin_ws/src/open_vins/config/suedhoehe/estimator_config.yaml"
@@ -283,6 +299,9 @@ run_openvins() {
     echo " Dataset: $target_dataset | Mode: $( [ "$ENABLE_GUI" = true ] && echo "Live GUI" || echo "Headless" )"
     echo "=========================================================="
 
+    docker kill openvins_node openvins_rviz openvins_player 2>/dev/null || true
+    docker rm -f openvins_node openvins_rviz openvins_player 2>/dev/null || true
+
     if [ "$ENABLE_GUI" = true ]; then
         launch_terminal "[1] OpenVINS MSCKF Node" \
           "docker run --rm --name openvins_node --entrypoint '' \
@@ -291,7 +310,7 @@ run_openvins() {
             -v '${catkin_ws}':/catkin_ws \
             -v '${results_dir}':/results \
             slam-base:latest \
-            bash -c 'source /opt/ros/humble/setup.bash && source /catkin_ws/install/setup.bash && ros2 run open_vins_eval run_subscribe_msckf --ros-args -p sys_config_path:=${config_path}'"
+            bash -c 'source /opt/ros/humble/setup.bash && source /catkin_ws/install/setup.bash && ros2 run ov_msckf run_subscribe_msckf ${config_path}'"
 
         sleep 3
 
@@ -313,19 +332,35 @@ run_openvins() {
             bash -c 'source /opt/ros/humble/setup.bash && ros2 bag play /dataset_dir/${bag_name} --clock 200'"
 
     else
-        docker run --rm --entrypoint "" \
+        docker run -d --name openvins_node --entrypoint "" \
           --cpus="${CPUS}" --memory="${MEMORY}" \
+          --net=host --ipc=host \
           -v "${catkin_ws}":/catkin_ws \
-          -v "${bag_dir}":/dataset_dir \
           -v "${results_dir}":/results \
           slam-base:latest \
           bash -c "source /opt/ros/humble/setup.bash && \
                    source /catkin_ws/install/setup.bash && \
-                   ros2 run open_vins_eval run_subscribe_msckf --ros-args -p sys_config_path:=${config_path} & \
-                   OV_PID=\$! && sleep 3 && \
-                   ros2 bag play /dataset_dir/${bag_name} --clock 200 && sleep 3 && \
-                   cp /tmp/ov_estimate.txt /results/openvins_tum.txt 2>/dev/null || true && \
-                   kill \$OV_PID 2>/dev/null || true"
+                   ros2 run ov_msckf run_subscribe_msckf ${config_path}"
+
+        sleep 3
+
+        docker run --rm --name openvins_player --entrypoint "" \
+          --net=host --ipc=host \
+          -v "${bag_dir}":/dataset_dir \
+          slam-base:latest \
+          bash -c "source /opt/ros/humble/setup.bash && ros2 bag play /dataset_dir/${bag_name} --clock 200"
+
+        sleep 3
+        docker kill openvins_node 2>/dev/null || true
+        docker rm -f openvins_node 2>/dev/null || true
+
+        # Fix permissions and convert output trajectory to standard TUM format
+        docker run --rm -v "${results_dir}":/results slam-base:latest chmod -R 777 /results 2>/dev/null || true
+        if [ -f "${results_dir}/ov_estimate.txt" ]; then
+            python3 "${SCRIPTS_DIR}/convert_openvins_to_tum.py" "${results_dir}/ov_estimate.txt" "${results_dir}/openvins_tum.txt" 2>/dev/null || true
+        elif [ -f "${REPO_ROOT}/results/ov_estimate.txt" ]; then
+            python3 "${SCRIPTS_DIR}/convert_openvins_to_tum.py" "${REPO_ROOT}/results/ov_estimate.txt" "${results_dir}/openvins_tum.txt" 2>/dev/null || true
+        fi
 
         echo "[✔] OpenVINS run finished: ${results_dir}/openvins_tum.txt"
     fi
