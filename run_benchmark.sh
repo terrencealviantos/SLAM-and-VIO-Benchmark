@@ -355,7 +355,7 @@ run_openvins() {
         docker rm -f openvins_node 2>/dev/null || true
 
         # Fix permissions and convert output trajectory to standard TUM format
-        docker run --rm -v "${results_dir}":/results slam-base:latest chmod -R 777 /results 2>/dev/null || true
+        docker run --rm --entrypoint "" -v "${results_dir}":/results slam-base:latest chmod -R 777 /results 2>/dev/null || true
         if [ -f "${results_dir}/ov_estimate.txt" ]; then
             python3 "${SCRIPTS_DIR}/convert_openvins_to_tum.py" "${results_dir}/ov_estimate.txt" "${results_dir}/openvins_tum.txt" 2>/dev/null || true
         elif [ -f "${REPO_ROOT}/results/ov_estimate.txt" ]; then
@@ -537,7 +537,7 @@ run_kimera() {
         docker kill kimera_node 2>/dev/null || true
         docker rm -f kimera_node 2>/dev/null || true
 
-        docker run --rm -v "${results_dir}":/output slam-base:latest chmod -R 777 /output 2>/dev/null || true
+        docker run --rm --entrypoint "" -v "${results_dir}":/output slam-base:latest chmod -R 777 /output 2>/dev/null || true
         python3 "${SCRIPTS_DIR}/convert_kimera_to_tum.py" "${results_dir}/traj_vio.csv" "${results_dir}/kimera_tum.txt" 2>/dev/null || true
 
         echo "[✔] Kimera-VIO run finished: ${results_dir}/kimera_tum.txt"
