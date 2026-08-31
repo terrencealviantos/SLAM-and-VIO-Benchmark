@@ -283,13 +283,13 @@ run_openvins() {
     local bag_dir="${REPO_ROOT}/datasets"
     local bag_name="suedhoehe_gps_schnee_02"
     local config_path="/catkin_ws/src/open_vins/config/suedhoehe/estimator_config.yaml"
-    local rviz_cfg="/rviz_cfg/suedhoehe_rviz.rviz"
+    local rviz_cfg="/rviz_cfg/openvins_rviz.rviz"
 
     if [ "$target_dataset" = "euroc" ] || [ "$target_dataset" = "euroc_MH01" ]; then
         results_dir="${REPO_ROOT}/results/euroc/openvins"
         config_path="/catkin_ws/src/open_vins/config/euroc_mav/estimator_config.yaml"
         bag_name="MH_01_easy"
-        rviz_cfg="/rviz_cfg/euroc_rviz.rviz"
+        rviz_cfg="/rviz_cfg/openvins_rviz.rviz"
     fi
 
     mkdir -p "$results_dir"
