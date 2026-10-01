@@ -1,4 +1,4 @@
-\documentclass[english, cd=nocolor, cdfont=off, fontsize=11pt, paper=a4]{tudscrreprt}
+\documentclass[english, cd=nocolor, cdfont=off, fontsize=11pt, paper=a4, final]{tudscrreprt}
 
 \setlength{\parskip}{0.8em}
 \setlength{\parindent}{0pt}
@@ -10,7 +10,8 @@
 \usepackage{microtype}
 \usepackage{amsmath, amssymb, amsfonts, amsthm, mathtools}
 \usepackage{bm}
-\usepackage{graphicx}
+\usepackage[final]{graphicx}
+\setkeys{Gin}{draft=false}
 \usepackage{booktabs}
 \usepackage{tabularx}
 \usepackage{array}
@@ -101,7 +102,7 @@ Through scoped, microsecond-level software timers (\path{std::chrono::high_resol
     \item \textbf{Global Consistency vs. Real-Time Determinism in Baseline ORB-SLAM3:} ORB-SLAM3 achieves unmatched metric accuracy on loop-closing trajectories ($\text{ATE RMSE} = \SI{0.0596}{\meter}$ on EuRoC MH\_01) through its Atlas multi-map and keyframe co-visibility graph. However, its CPU tracking thread experiences severe computational bottlenecks (mean latency $\SI{54.66}{\milli\second}$, peak tail latency $\SI{283.30}{\milli\second}$), with ORB descriptor extraction accounting for over $85\%$ of tracking duration. This limits maximum CPU tracking frequency to $\approx 18\,\text{FPS}$, causing frame drops under high-rate sensor streams.
     \item \textbf{High-Efficiency Hybrid Tracking Breakthrough (ORB-SLAM3 KLT):} By tracking non-keyframes via pyramidal KLT optical flow ($\SI{18.5}-\SI{19.5}{\milli\second}$) and restricting ORB extraction strictly to sparse keyframes, the hybrid architecture achieves a $\mathbf{36.1\%}$ reduction in tracking latency ($25.15\,\text{ms}$ mean, supporting $\approx 40-45\,\text{FPS}$) and reduces keyframe creation and backend bundle adjustment workload by $\mathbf{40\%}$ (181 vs 301 keyframes on EuRoC MH\_01), while matching the centimeter-level accuracy of full SLAM ($\text{ATE RMSE} = \SI{0.0612}{\meter}$).
     \item \textbf{Filtering \& Fixed-Lag Determinism:} MSCKF-based OpenVINS and factor-graph-based Kimera-VIO provide bounded, highly deterministic compute footprints (mean tracking latencies of $\SI{8.72}{\milli\second}$ and $\SI{6.35}{\milli\second}$, supporting $>100\,\text{FPS}$), but suffer from continuous metric drift over unlooped trajectories.
-    \item \textbf{GPU Acceleration Paradigm:} NVIDIA cuVSLAM leverages CUDA cores and Tensor cores to execute stereo rectification and KLT optical flow in $\SI{1.81}{\milli\second}$, delivering end-to-end frame tracking in $\SI{5.80}{\milli\second}$ ($>170\,\text{FPS}$) alongside asynchronous GPU local bundle adjustment ($\SI{8.62}{\milli\second}$) and achieving high accuracy ($\text{ATE RMSE} = \SI{0.0812}{\meter}$).
+    \item \textbf{GPU Acceleration Paradigm:} NVIDIA cuVSLAM leverages CUDA cores to execute stereo rectification and KLT optical flow in $\SI{1.87}{\milli\second}$, delivering end-to-end frame tracking in $\SI{5.92}{\milli\second}$ median ($>170\,\text{FPS}$) alongside asynchronous GPU local bundle adjustment ($\SI{8.28}{\milli\second}$ mean) and achieving high accuracy ($\text{ATE RMSE} = \SI{0.0812}{\meter}$).
 \end{itemize}
 
 This monograph demonstrates both theoretically and empirically that hybridizing high-rate KLT optical flow on non-keyframes with asynchronous descriptor extraction on sparse keyframes eliminates the latency-consistency dilemma, establishing the optimal design pattern for next-generation visual-inertial navigation.
@@ -150,52 +151,124 @@ The combination of visual and inertial streams provides decisive operational adv
 
 However, similar to pure VO, pure VIO estimates only a local trajectory within a finite temporal window and does not maintain a persistent global map to eliminate long-term drift.
 
-\subsection{Tracking in SLAM Systems: Pure VIO vs. Full SLAM}
-Tracking is the foundational real-time front-end of Simultaneous Localization and Mapping (SLAM) and VIO systems. Its primary objective is to estimate the current pose of the sensor rig for every incoming frame using current observations and historical spatial representations.
+\subsection{Visual-Inertial Odometry (VIO) vs. Full SLAM: Fundamental Paradigms}
 
-In feature-based systems, tracking operates through three sequential phases:
-\begin{enumerate}
-    \item Detecting salient features (corners, edges, blobs) in the incoming frame;
-    \item Associating these detections with features from previous frames or active 3D map points;
-    \item Solving non-linear geometric optimization (Motion-only Bundle Adjustment or Perspective-n-Point / PnP) to estimate camera pose.
-\end{enumerate}
+\subsubsection{Core Estimation Problem: What is the System Trying to Estimate?}
+The fundamental distinction between Visual-Inertial Odometry (VIO) and Simultaneous Localization and Mapping (SLAM) lies in what mathematical state the system seeks to estimate and maintain over time:
+\begin{itemize}
+    \item \textbf{Visual-Inertial Odometry (VIO):} Estimates solely the incremental ego-motion and kinematic trajectory of the sensor platform over time using tightly-coupled camera and IMU measurements. VIO maintains only a local, finite temporal horizon (a sliding window of $N \approx 10-20$ recent camera poses or active visual landmarks). Once spatial landmarks leave the camera field of view and are marginalized out of the active window, they are permanently discarded. VIO maintains no persistent representation of the environment; its mathematical objective is pure, low-latency dead-reckoning state propagation.
+    \item \textbf{Simultaneous Localization and Mapping (SLAM):} Solves a dual, coupled estimation problem: estimating the device's 6-DoF pose trajectory $\mathcal{X}_{0:t}$ while simultaneously building, maintaining, and incrementally expanding an explicit, persistent, spatially registered map $\mathcal{M}$ of the external environment. This map persists throughout the entire operational lifetime of the mission, serving as a cumulative spatial memory that grounds future tracking and enables global drift elimination.
+\end{itemize}
 
-Although VIO and SLAM share similar visual-inertial frontends, they diverge fundamentally in system architecture and objectives:
+\subsubsection{An Intuitive Conceptual Analogy: Exploring an Unfamiliar Building}
+To understand the practical operational consequences of this distinction, consider an autonomous robot or handheld sensor traversing an unfamiliar multi-story building:
+\begin{itemize}
+    \item \textbf{Under Pure VIO:} The system deduces relative kinematic displacements step by step: \textit{``I initialized at the origin, advanced $\SI{1.0}{\meter}$ forward, rotated $30^\circ$ clockwise, traveled another $\SI{2.0}{\meter}$, and climbed a flight of stairs.''} Because every update is strictly local and relies on integrating noisy sensor signals, infinitesimal sensor biases and linearization errors compound monotonically. When the robot returns to the starting doorway ten minutes later, VIO has no spatial memory of its prior passage. It reports an accumulated, drifted coordinate frame, oblivious to the fact that it is standing in the exact location where it began.
+    \item \textbf{Under Full SLAM:} The system executes identical high-rate motion tracking, but concurrently registers distinctive visual landmarks into a persistent spatial database (e.g., ORB visual words in a DBoW vocabulary tree). When the robot re-enters the initial doorway ten minutes later, its visual place recognition engine identifies that the current visual descriptors match the doorway observed at timestamp $t=0$. This detection triggers a \textit{loop closure}: the SLAM backend computes a rigid or similarity constraint ($\SEthree$ or $\Simthree$), establishes geometric correspondences with the historical map points, and executes global Pose Graph Optimization (PGO) or Full Bundle Adjustment (BA). In a single optimization sweep, the accumulated dead-reckoning drift along the entire trajectory is snapped back to near-zero, and redundant map elements are fused into a globally consistent representation.
+\end{itemize}
+
+\subsubsection{Hierarchical System Architecture: VIO as the High-Rate Inner Loop of Full SLAM}
+In modern robotic state estimation, VIO and SLAM should not be viewed as mutually exclusive or adversarial alternatives. Rather, they represent complementary tiers within a hierarchical, multi-rate estimation continuum:
+\begin{itemize}
+    \item \textbf{High-Rate Inner Loop (Tracking \& Dynamic Stabilization):} The visual-inertial odometry frontend runs synchronously at frame rates ($30-\SI{200}{\hertz}$), fusing IMU preintegration with inter-frame optical flow or sparse feature tracking to deliver deterministic, low-latency state feedback ($\Delta t < \SI{10}{\milli\second}$). This high-bandwidth inner loop is indispensable for platform stabilization, flight control (e.g., MAV attitude control loops), and local obstacle avoidance.
+    \item \textbf{Global Outer Loop (Mapping, Loop Closure, \& Long-Term Consistency):} The SLAM backend operates asynchronously at lower frequencies ($1-\SI{5}{\hertz}$) or on opportunistic event triggers. It ingests keyframes spawned by the inner loop, manages co-visibility graphs, detects revisited locations, and optimizes global trajectory consistency, ensuring that local dead-reckoning drift does not compromise long-term navigation.
+\end{itemize}
+
+Table~\ref{tab:vio_vs_slam_side_by_side} formalizes the side-by-side functional and architectural trade-offs between pure VIO and full SLAM across key operational dimensions.
 
 \begin{table}[H]
 \centering
 \small
-\caption{Fundamental Architectural Comparison Across State Estimation Paradigms.}
-\label{tab:vio_vs_slam_comparison}
-\begin{tabularx}{\textwidth}{>{\raggedright\arraybackslash}p{2.8cm} >{\raggedright\arraybackslash}X >{\raggedright\arraybackslash}X >{\raggedright\arraybackslash}X}
+{\renewcommand{\arraystretch}{1.3}
+\caption{Comprehensive Side-by-Side Comparison: Pure VIO vs. Full SLAM.}
+\label{tab:vio_vs_slam_side_by_side}
+\begin{tabularx}{\textwidth}{>{\raggedright\arraybackslash}p{3.2cm} >{\raggedright\arraybackslash}X >{\raggedright\arraybackslash}X}
 \toprule
-\textbf{Architectural Dimension} & \textbf{Pure Visual-Inertial Odometry (VIO)} & \textbf{Classical Keyframe SLAM (ORB-SLAM3)} & \textbf{Hybrid KLT SLAM (ORB-SLAM3 KLT)} \\
+\textbf{Evaluation Dimension} & \textbf{Visual-Inertial Odometry (VIO)} & \textbf{Simultaneous Localization and Mapping (SLAM)} \\
 \midrule
-\textbf{Primary Objective} & Continuous, low-latency local ego-motion & Joint trajectory estimation + persistent mapping & High-rate low-latency tracking + persistent mapping \\
-\textbf{Map Persistence} & Temporal sliding window ($N \approx 10-20$ frames) & Persistent global 3D landmark database & Persistent global 3D landmark database \\
-\textbf{Tracking Frontend} & Inter-frame KLT optical flow ($\SI{6}-\SI{9}{\milli\second}$) & Multi-scale ORB descriptor matching ($\approx \SI{50}{\milli\second}$) & KLT on non-KFs ($\approx \SI{19}{\milli\second}$) + ORB on KFs only \\
-\textbf{Loop Closure Engine} & None (Pure dead-reckoning) & DBoW Place recognition + $\Simthree$ alignment & DBoW Place recognition + $\Simthree$ alignment \\
-\textbf{Drift Behavior} & Monotonic accumulation ($\sim t$) & Drift reset to near-zero upon loop closure & Drift reset to near-zero upon loop closure \\
-\textbf{Keyframe Generation} & N/A (Sliding window margin) & High density ($>300$ KFs on EuRoC MH\_01) & Filtered density ($181$ KFs, $-40\%$ BA load) \\
-\textbf{Typical Use Case} & High-rate flight control, inner-loop MAVs & Full mapping, delivery robotics & CPU-constrained autonomous MAVs and UGVs \\
+\textbf{Full Name} & Visual-Inertial Odometry & Simultaneous Localization and Mapping \\
+\addlinespace[0.4em]
+\textbf{Primary Objective} & Continuous, low-latency ego-motion / trajectory estimation & Joint 6-DoF pose tracking and persistent environment mapping \\
+\addlinespace[0.4em]
+\textbf{Sensors Employed} & Monocular/Stereo Cameras + 6-axis MEMS IMU & Cameras, IMU, LiDAR, Depth sensors, GNSS/GPS \\
+\addlinespace[0.4em]
+\textbf{Map Requirement} & No persistent map; transient sliding window only & Persistent global map is an indispensable core component \\
+\addlinespace[0.4em]
+\textbf{Primary Output} & High-rate relative trajectory, velocity, IMU biases & Globally consistent pose trajectory + environment map \\
+\addlinespace[0.4em]
+\textbf{Loop Closure Engine} & Absent (pure dead-reckoning state propagation) & Integral (DBoW place recognition, $\Simthree$ alignment, PGO) \\
+\addlinespace[0.4em]
+\textbf{Drift Characteristics} & Monotonically accumulates over time ($\sim t$) & Long-term drift bounded and eliminated upon loop closures \\
+\addlinespace[0.4em]
+\textbf{Relocalization} & Lost upon severe tracking failure & Instantaneous global relocalization against stored map \\
+\addlinespace[0.4em]
+\textbf{Compute \& Memory} & Bounded, deterministic CPU load and memory footprint & Growing memory footprint; periodic heavy global optimization \\
+\addlinespace[0.4em]
+\textbf{Typical Use Cases} & Drone flight control, AR/VR tracking, inner-loop MAVs & Autonomous robot navigation, mobile mapping, UGV exploration \\
 \bottomrule
-\end{tabularx}
+\end{tabularx}}
 \end{table}
 
+\subsubsection{Architectural Continuum Across the Benchmarked Frameworks}
+In this monograph, the five benchmarked state estimation systems represent distinct instantiations across this VIO-to-SLAM continuum:
+\begin{enumerate}
+    \item \textbf{OpenVINS (Filter-Based Pure VIO):} Executes Multi-State Constraint Kalman Filter (MSCKF) sliding-window updates. Poses and feature tracks are marginalized analytically, maintaining a strictly bounded memory footprint and deterministic compute budget without storing a map.
+    \item \textbf{Kimera-VIO (Optimization-Based Pure VIO Core):} Formulates state estimation as factor graph optimization using GTSAM iSAM2 over a fixed-lag keyframe window. While performing iterative non-linear optimization, its core tracking and smoothing pipeline operates as an open-loop odometry engine.
+    \item \textbf{Baseline ORB-SLAM3 (Full Feature-Based Keyframe SLAM):} Executes full SLAM via three concurrent threads: descriptor-based tracking, local keyframe bundle adjustment, and an Atlas multi-map loop closing engine backed by DBoW2 place recognition.
+    \item \textbf{Hybrid KLT ORB-SLAM3 (Hybrid Continuum SLAM):} Re-architects full SLAM to embody the dual-loop paradigm: an ultra-fast KLT optical flow inner tracking loop runs on non-keyframes ($\approx \SI{18.5}{\milli\second}$), while descriptor extraction is reserved exclusively for sparse keyframes to power the persistent SLAM outer loop.
+    \item \textbf{NVIDIA cuVSLAM (Hardware-Accelerated Full SLAM):} Parallelizes the dual-loop architecture on NVIDIA Ampere/Ada GPUs via CUDA streams, executing high-rate optical flow tracking in $\SI{1.87}{\milli\second}$ while offloading local BA and loop pose-graph optimization to parallel GPU streams.
+\end{enumerate}
+
+Table~\ref{tab:vio_vs_slam_comparison} outlines the architectural and runtime trade-offs across these representative paradigms.
+
+\begin{table}[H]
+\centering
+\small
+{\renewcommand{\arraystretch}{1.3}
+\caption{Architectural and Runtime Comparison Across State Estimation Paradigms.}
+\label{tab:vio_vs_slam_comparison}
+\begin{tabularx}{\textwidth}{>{\raggedright\arraybackslash}p{2.6cm} >{\raggedright\arraybackslash}X >{\raggedright\arraybackslash}X >{\raggedright\arraybackslash}X >{\raggedright\arraybackslash}X}
+\toprule
+\textbf{Paradigm} & \textbf{Filter VIO (OpenVINS)} & \textbf{Smoother VIO (Kimera-VIO)} & \textbf{Full CPU SLAM (ORB-SLAM3)} & \textbf{Hybrid KLT SLAM (Ours)} \\
+\midrule
+\textbf{Primary Goal} & Real-time dead-reckoning & Fixed-lag state smoothing & Joint trajectory + global Atlas & High-rate tracking + global Atlas \\
+\addlinespace[0.4em]
+\textbf{Tracking Front} & KLT flow ($\SI{6}-\SI{9}{\milli\second}$) & KLT flow ($\SI{6.35}{\milli\second}$) & Multi-scale ORB ($\approx \SI{50}{\milli\second}$) & KLT on non-KFs ($\approx \SI{19}{\milli\second}$) + ORB \\
+\addlinespace[0.4em]
+\textbf{Backend Solver} & MSCKF Kalman filter & iSAM2 factor graph & Local g2o Bundle Adjustment & Local g2o Bundle Adjustment \\
+\addlinespace[0.4em]
+\textbf{Map Retention} & Marginalized sliding window & Marginalized lag window & Persistent multi-map Atlas & Persistent multi-map Atlas \\
+\addlinespace[0.4em]
+\textbf{Loop Closure} & None (open-loop drift) & Extensible module (off by default) & Active DBoW2 + Pose Graph & Active DBoW2 + Pose Graph \\
+\addlinespace[0.4em]
+\textbf{Drift Behavior} & Cumulative drift & Cumulative drift & Drift reset to $\approx \SI{0}{\meter}$ & Drift reset to $\approx \SI{0}{\meter}$ \\
+\addlinespace[0.4em]
+\textbf{Framerate Cap} & $>100\,\text{FPS}$ & $>150\,\text{FPS}$ & $\approx 18-20\,\text{FPS}$ & $\approx 40-45\,\text{FPS}$ \\
+\bottomrule
+\end{tabularx}}
+\end{table}
+
+\subsubsection{Motivation for Joint Benchmarking in this Monograph}
+Benchmarking pure VIO engines alongside full SLAM architectures within the same experimental framework is essential for two reasons:
+\begin{enumerate}
+    \item \textbf{Quantifying the Computational Tax of Global Consistency:} By comparing OpenVINS and Kimera-VIO directly against ORB-SLAM3 on identical sensor streams, we isolate the exact computational overhead (CPU cycle consumption, thread contention, and frame drops) imposed by maintaining persistent map points, co-visibility graphs, and loop closure engines.
+    \item \textbf{Evaluating the Hybrid Paradigm:} The benchmark provides empirical proof that decoupling the inner tracking loop (via KLT optical flow) from the outer mapping loop (via keyframe descriptors) allows autonomous systems to achieve near-VIO tracking throughput without sacrificing the drift-free spatial guarantees of full SLAM.
+\end{enumerate}
+
 \subsection{Feature Representations in Visual Tracking}
-Visual frontends can be categorized into four dominant tracking paradigms:
+Visual frontends in state estimation can be categorized into three dominant tracking paradigms:
 
 \subsubsection{Descriptor-Based Sparse Features}
-Descriptor-based methods (e.g., ORB, SIFT, SURF) detect interest points across an image scale pyramid and compute multi-dimensional bitstrings or vectors invariant to rotation, scale, and lighting.
+Descriptor-based systems detect salient interest points (e.g., ORB~\cite{rublee2011orb}, SIFT, SURF) and compute invariant binary or floating-point feature descriptors:
 \begin{itemize}
     \item \textbf{Advantages:} High invariance to viewpoint changes, suitable for wide-baseline matching, relocalization, and loop closing.
     \item \textbf{Disadvantages:} Heavy computational overhead on CPU due to multi-scale extraction and Hamming distance matching ($\approx \SI{46}{\milli\second}$ per frame).
 \end{itemize}
 
 \subsubsection{Patch-Based Sparse Optical Flow (KLT Tracker)}
-The Kanade--Lucas--Tomasi (KLT) tracker tracks pixel patches across temporal frames by minimizing the sum of squared photometric errors under the brightness constancy assumption.
+The Kanade--Lucas--Tomasi (KLT) tracker~\cite{lucaskanade1981,bouguet2001klt} tracks pixel patches across temporal frames by minimizing the sum of squared photometric errors under the brightness constancy assumption:
 \begin{itemize}
-    \item \textbf{Advantages:} Extremely low computational footprint ($\approx \SI{6}-\SI{8}{\milli\second}$ on CPU, $\approx \SI{1.8}{\milli\second}$ on GPU), enabling frame rates $>100\,\text{FPS}$.
+    \item \textbf{Advantages:} Extremely low computational footprint ($\approx \SI{6}-\SI{8}{\milli\second}$ on CPU, $\approx \SI{1.87}{\milli\second}$ on GPU~\cite{bouguet2001klt}), enabling frame rates $>100\,\text{FPS}$.
     \item \textbf{Disadvantages:} Sensitive to illumination transients, large inter-frame displacement, and lacks global place descriptors for loop closure.
 \end{itemize}
 
@@ -205,13 +278,6 @@ Hybrid tracking decouples high-frequency temporal tracking from place recognitio
     \item \textbf{High-Speed Non-Keyframe Lane:} Incoming non-keyframes are tracked using sparse KLT optical flow against the previous frame, projecting 3D map points and optimizing pose with g2o motion-only BA in $< \SI{20}{\milli\second}$.
     \item \textbf{Selective Keyframe Feature Extraction:} Full ORB feature extraction and descriptor computation are invoked only when geometric covisibility triggers a keyframe decision ($2-\SI{5}{\hertz}$).
     \item \textbf{Advantages:} Combines the $>40\,\text{FPS}$ real-time throughput of optical flow with the drift-eliminating loop closure and relocalization accuracy of full descriptor-based SLAM.
-\end{itemize}
-
-\subsubsection{Direct and Semi-Dense Methods}
-Direct methods (e.g., LSD-SLAM, DSO) bypass feature extraction entirely, estimating motion directly from image intensity gradients $\nabla I$ across high-gradient pixels.
-\begin{itemize}
-    \item \textbf{Advantages:} Operates in low-texture environments where distinct corners cannot be extracted.
-    \item \textbf{Disadvantages:} Highly vulnerable to geometric lens distortion, rolling shutter artifacts, and non-Lambertian surface reflections.
 \end{itemize}
 
 \section{Physics and Complementarity of Visual-Inertial Fusion}
@@ -248,10 +314,76 @@ To ensure unambiguous mathematical notation throughout this paper, we establish 
 
 The extrinsic spatial transformation between the IMU frame $\{B\}$ and the camera frame $\{C\}$ is parameterized by the rigid-body transformation $\mat{T}_{CB} = \begin{bmatrix} \mat{R}_{CB} & \vect{p}_{CB} \\ \vect{0}^\top & 1 \end{bmatrix} \in \SEthree$.
 
-\begin{figure}[H]
+Table~\ref{tab:notation_summary} summarizes the mathematical notations, Lie group elements, and sensor symbols utilized throughout this work.
+
+\begin{table}[H]
+\centering
+\small
+\caption{Summary of Mathematical Notations, Lie Groups, and Coordinate Conventions.}
+\label{tab:notation_summary}
+\begin{tabularx}{\textwidth}{>{\raggedright\arraybackslash}p{3.2cm} >{\raggedright\arraybackslash}X}
+\toprule
+\textbf{Symbol / Notation} & \textbf{Mathematical Definition and Operational Role} \\
+\midrule
+$\{W\}, \{B\}, \{C\}, \{G\}$ & World (inertial), Body (IMU), Camera (optical), and Global (RTK-GPS) coordinate frames \\
+$\mat{R} \in \SOthree, \vect{p} \in \mathbb{R}^3$ & Special Orthogonal 3D rotation matrix and Euclidean position vector \\
+$\mat{T} = \begin{bmatrix} \mat{R} & \vect{p} \\ \vect{0}^\top & 1 \end{bmatrix} \in \SEthree$ & Special Euclidean 6-DoF rigid-body transformation matrix \\
+$\vect{\phi} \in \sothree, \vect{\xi} \in \sethree$ & Tangent vector elements of the Lie algebras $\sothree$ and $\sethree$ \\
+$(\cdot)^\wedge, (\cdot)^\vee$ & Skew-symmetric generator (hat operator) and inverse vector isomorphism (vee operator) \\
+$\Exp(\cdot), \Log(\cdot)$ & Exponential and logarithmic mappings connecting Lie groups and Lie algebras \\
+$\vect{a}_t, \vect{\omega}_t$ & True physical linear acceleration and angular velocity in body coordinate frame $\{B\}$ \\
+$\tilde{\vect{a}}_t, \tilde{\vect{\omega}}_t$ & IMU accelerometer and gyroscope sensor measurements \\
+$\vect{b}_{a_t}, \vect{b}_{g_t}$ & Slowly time-varying accelerometer and gyroscope bias random walks \\
+$\vect{\eta}_a, \vect{\eta}_g, \vect{\eta}_{ba}, \vect{\eta}_{bg}$ & Zero-mean Gaussian measurement noise and continuous-time bias driving noise \\
+$\vect{g}_W = \begin{bmatrix} 0 & 0 & -9.81 \end{bmatrix}^\top$ & Nominal gravitational acceleration vector expressed in the world frame $\{W\}$ \\
+$\Delta\mat{R}_{ij}, \Delta\vect{v}_{ij}, \Delta\vect{p}_{ij}$ & Preintegrated relative rotation, velocity, and position measurements between keyframes $i, j$ \\
+$\mat{K}, [f_x, f_y, c_x, c_y]$ & Pinhole camera intrinsic calibration matrix, focal lengths, and optical center coordinates \\
+$b > 0$ & Horizontal stereo camera baseline distance separating optical centers $\{C_L\}$ and $\{C_R\}$ \\
+$\mat{T}_{CB} \in \SEthree$ & Rigid-body extrinsic spatial calibration transformation mapping $\{B\}$ to $\{C\}$ \\
+$\mat{P}_t, \mat{\Sigma}_t$ & State error covariance matrix and measurement noise covariance matrix \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+The thread concurrency patterns and inter-thread data flow architectures of the five evaluated visual-inertial paradigms are conceptually illustrated in Figure~\ref{fig:ch1_multithread_arch}. Each framework is displayed individually to maintain high legibility and consistent font sizing matching the report typography.
+
+\begin{figure}[p]
     \centering
-    \includegraphics[width=0.95\textwidth]{multithread_architecture_comparison.png}
-    \caption{Architectural overview and multi-thread concurrency models across the five benchmarked visual-inertial paradigms: (1) OpenVINS single-thread MSCKF, (2) Kimera-VIO 2-thread factor graph, (3) Baseline ORB-SLAM3 3-thread full SLAM, (4) Hybrid KLT ORB-SLAM3 3-thread system, and (5) NVIDIA cuVSLAM 3-pipeline GPU execution model.}
+    \begin{subfigure}[b]{\textwidth}
+        \centering
+        \includegraphics[width=\textwidth]{arch_1_openvins.png}
+        \caption{OpenVINS: Sequential execution on a single primary MSCKF thread.}
+        \label{fig:arch_openvins}
+    \end{subfigure}
+    \vspace{0.4em}
+    \begin{subfigure}[b]{\textwidth}
+        \centering
+        \includegraphics[width=\textwidth]{arch_2_kimera.png}
+        \caption{Kimera-VIO: Decoupled two-thread concurrency between tracking and iSAM2.}
+        \label{fig:arch_kimera}
+    \end{subfigure}
+    \vspace{0.4em}
+    \begin{subfigure}[b]{\textwidth}
+        \centering
+        \includegraphics[width=\textwidth]{arch_3_orbslam3.png}
+        \caption{Baseline ORB-SLAM3: Three-thread CPU architecture with heavy descriptor extraction.}
+        \label{fig:arch_orbslam3}
+    \end{subfigure}
+    \vspace{0.4em}
+    \begin{subfigure}[b]{\textwidth}
+        \centering
+        \includegraphics[width=\textwidth]{arch_4_orbslam3_klt.png}
+        \caption{Hybrid KLT ORB-SLAM3: Dual-rate optical flow tracking on non-keyframes.}
+        \label{fig:arch_orbslam3_klt}
+    \end{subfigure}
+    \vspace{0.4em}
+    \begin{subfigure}[b]{\textwidth}
+        \centering
+        \includegraphics[width=\textwidth]{arch_5_cuvslam.png}
+        \caption{NVIDIA cuVSLAM: Three concurrent GPU CUDA streams executing VO, local BA, and loop PGO.}
+        \label{fig:arch_cuvslam}
+    \end{subfigure}
+    \caption{Architectural overview and multi-thread concurrency models across the five evaluated visual-inertial paradigms. Each framework is plotted individually with clean serif typography, light backgrounds, and axis-level annotations.}
     \label{fig:ch1_multithread_arch}
 \end{figure}
 
@@ -262,8 +394,21 @@ This monograph presents an in-depth architectural and empirical benchmark answer
     \item \textbf{Visual Frontend Analysis:} What is the exact computational cost of descriptor extraction (ORB) versus optical flow (KLT), and how does each method behave under aggressive dynamic motion and visual degradation?
     \item \textbf{Thread Concurrency and Profiling:} Where do computational bottlenecks arise inside modern multi-threaded SLAM engines, and how do thread locking and keyframe queuing affect real-time determinism?
     \item \textbf{Hybrid Tracking Optimization:} How much latency and backend optimization reduction can be achieved by integrating lightweight KLT tracking on non-keyframes into full SLAM without degrading loop-closing precision?
-    \item \textbf{Hardware Acceleration:} How significantly do GPU CUDA cores and Tensor cores accelerate state estimation pipelines compared to high-end multi-core CPUs?
+    \item \textbf{Hardware Acceleration:} How significantly do GPU CUDA cores accelerate state estimation pipelines compared to high-end multi-core CPUs?
 \end{enumerate}
+
+\section{Related Work and Positioning}
+The design space of visual-inertial navigation has been explored extensively across filtering, optimization, and hybrid paradigms:
+
+\textbf{Filter-Based VIO.} The MSCKF formulation~\cite{mourikis2007} pioneered efficient EKF-based visual-inertial fusion by marginalizing features from the state vector via QR null-space projection, later refined in OpenVINS~\cite{openvins} with online calibration and First-Estimates Jacobian (FEJ) consistency~\cite{huang2011fej}. ROVIO~\cite{bloesch2017rovio} extends this with direct photometric tracking, removing the need for explicit feature extraction but sacrificing robustness under rapid motion.
+
+\textbf{Optimization-Based SLAM.} ORB-SLAM2/3~\cite{murartal2017orbslam2,orbslam3} established the keyframe-based bundle adjustment paradigm with ORB descriptors~\cite{rublee2011orb}, DBoW2 place recognition~\cite{galvez2012dbow2}, and the multi-map Atlas architecture. Kimera-VIO~\cite{kimeravio} combines KLT-tracked features with incremental iSAM2 smoothing~\cite{dellaert2012isam2}. OKVIS~\cite{leutenegger2015okvis} uses Harris corners with BRISK descriptors in a sliding-window optimization. VINS-Mono~\cite{qin2018vinsmono} employs KLT tracking with a sliding-window graph optimizer and loop closure via DBoW, representing a hybrid VIO-SLAM system.
+
+\textbf{Direct and Semi-Direct Methods.} DSO~\cite{engel2017dso} minimizes photometric error directly on image patches without feature extraction. SVO (Semi-direct Visual Odometry) combines sparse image alignment with feature-based refinement, achieving high frame rates through a hybrid direct-indirect tracking pipeline.
+
+\textbf{GPU-Accelerated Approaches.} NVIDIA cuVSLAM~\cite{cuvslam} represents the state-of-the-art in hardware-accelerated SLAM, offloading all compute-intensive operations (KLT tracking, stereo rectification, bundle adjustment) to CUDA GPU kernels. While its closed-source nature limits detailed analysis, the architectural philosophy of parallelizing visual SLAM across GPU streaming multiprocessors has demonstrated an order-of-magnitude throughput improvement over CPU baselines.
+
+\textbf{Contribution and Novelty.} While hybrid tracking strategies have been explored in systems like VINS-Mono and SVO, no prior work has integrated pyramidal KLT optical flow into the full ORB-SLAM3 three-thread Atlas architecture while preserving DBoW2 loop closing and $\Simthree$ multi-map merging. Our \textbf{Hybrid KLT ORB-SLAM3}~\cite{orbslam3klt} is the first to demonstrate that dual-rate tracking (KLT on non-keyframes, ORB on keyframes) within the ORB-SLAM3 framework achieves a $36.1\%$ latency reduction and $40\%$ keyframe reduction while maintaining centimeter-level accuracy on standard benchmarks.
 
 % =============================================================================
 % CHAPTER 2: MATHEMATICAL FOUNDATIONS
@@ -271,7 +416,7 @@ This monograph presents an in-depth architectural and empirical benchmark answer
 \chapter{Theoretical Foundations and Geometric Kinematics on Manifolds}
 
 \section{Matrix Lie Groups and Lie Algebras}
-Three-dimensional rotations do not form a vector space under standard matrix addition, as adding two orthogonal rotation matrices does not yield an orthogonal matrix ($\mat{R}_1 + \mat{R}_2 \notin \SOthree$). Formulating unconstrained optimization or standard Kalman filtering in $\mathbb{R}^{3 \times 3}$ leads to covariance singularity and loss of orthogonality. State estimation on manifolds formulates states directly on Lie Groups and parameterizes perturbation errors on their corresponding tangent spaces (Lie Algebras).
+Three-dimensional rotations do not form a vector space under standard matrix addition, as adding two orthogonal rotation matrices does not yield an orthogonal matrix ($\mat{R}_1 + \mat{R}_2 \notin \SOthree$). Formulating unconstrained optimization or standard Kalman filtering in $\mathbb{R}^{3 \times 3}$ leads to covariance singularity and loss of orthogonality. State estimation on manifolds formulates states directly on Lie Groups and parameterizes perturbation errors on their corresponding tangent spaces (Lie Algebras)~\cite{sola2017micro,barfoot2017state}.
 
 \subsection{The Special Orthogonal Group $\SOthree$}
 The group $\SOthree$ represents 3D rotations:
@@ -333,7 +478,7 @@ The nominal state kinematics in continuous time are:
 \section{On-Manifold IMU Preintegration Theory}
 In optimization-based visual-inertial estimation, keyframe poses $\mat{T}_{WB_i}$ and $\mat{T}_{WB_j}$ are updated iteratively during bundle adjustment. Recalculating the continuous-time IMU integration across hundreds of raw IMU samples between $t_i$ and $t_j$ at each solver iteration would result in severe computational bottlenecks.
 
-IMU preintegration solves this by defining relative motion increments in the local reference frame of keyframe $i$:
+IMU preintegration theory~\cite{forster2017} solves this by defining relative motion increments in the local reference frame of keyframe $i$:
 \begin{align}
     \Delta\mat{R}_{ij} &\triangleq \mat{R}_{WB_i}^\top \mat{R}_{WB_j} = \prod_{k=i}^{j-1} \Exp\left( (\tilde{\vect{\omega}}_k - \vect{b}_{g_i}) \Delta t \right) \\
     \Delta\vect{v}_{ij} &\triangleq \mat{R}_{WB_i}^\top (\vect{v}_{WB_j} - \vect{v}_{WB_i} - \vect{g}_W \Delta t_{ij}) = \sum_{k=i}^{j-1} \Delta\mat{R}_{ik} (\tilde{\vect{a}}_k - \vect{b}_{a_i}) \Delta t \\
@@ -350,16 +495,16 @@ where $\mat{J}_{\Delta R, g} = \frac{\partial \Delta\mat{R}_{ij}}{\partial \vect
 
 \section{Camera Models, Epipolar Geometry, and Triangulation}
 \subsection{Pinhole Camera and Distortion Models}
-Let $\vect{p}_C = \begin{bmatrix} X_C & Y_C & Z_C \end{bmatrix}^\top$ be a 3D point in camera coordinates. Its normalized image plane coordinate is $\vect{x}_n = \begin{bmatrix} x_n & y_n \end{bmatrix}^\top = \begin{bmatrix} X_C/Z_C & Y_C/Z_C \end{bmatrix}^\top$.
+Following projective and multiple view geometry principles~\cite{hartley2003multiple}, let $\vect{p}_C = \begin{bmatrix} X_C & Y_C & Z_C \end{bmatrix}^\top$ be a 3D point in camera coordinates. Its normalized image plane coordinate is $\vect{x}_n = \begin{bmatrix} x_n & y_n \end{bmatrix}^\top = \begin{bmatrix} X_C/Z_C & Y_C/Z_C \end{bmatrix}^\top$.
 
 The radial-tangential distortion model corrects lens distortion:
 \begin{align}
     r^2 &= x_n^2 + y_n^2 \\
     \vect{x}_d &= (1 + k_1 r^2 + k_2 r^4 + k_3 r^6) \vect{x}_n + \begin{bmatrix} 2 p_1 x_n y_n + p_2 (r^2 + 2 x_n^2) \\ p_1 (r^2 + 2 y_n^2) + 2 p_2 x_n y_n \end{bmatrix}
 \end{align}
-The final pixel coordinate $\vect{u} = \begin{bmatrix} u & v \end{bmatrix}^\top$ is obtained via intrinsic calibration matrix $\mat{K}$:
+The final pixel coordinate $\vect{u} = \begin{bmatrix} u & v \end{bmatrix}^\top$ is obtained by applying the intrinsic calibration matrix $\mat{K}$:
 \begin{equation}
-    \vect{u} = \pi(\vect{p}_C) = \begin{bmatrix} f_x & 0 & c_x \\ 0 & f_y & c_y \end{bmatrix} \vect{x}_d + \begin{bmatrix} c_x \\ c_y \end{bmatrix}
+    \vect{u} = \pi(\vect{p}_C) = \begin{bmatrix} f_x \cdot x_d + c_x \\ f_y \cdot y_d + c_y \end{bmatrix} = \mat{K}_{[2 \times 3]} \begin{bmatrix} x_d \\ y_d \\ 1 \end{bmatrix}, \quad \mat{K} = \begin{bmatrix} f_x & 0 & c_x \\ 0 & f_y & c_y \\ 0 & 0 & 1 \end{bmatrix}
 \end{equation}
 
 \subsection{Stereo Geometry and Disparity}
@@ -420,7 +565,7 @@ where $\rho(s)$ is the Huber robust loss function:
     \rho_\delta(s) = \begin{cases} \frac{1}{2} s & \text{if } s \le \delta^2 \\ \delta \sqrt{s} - \frac{1}{2}\delta^2 & \text{if } s > \delta^2 \end{cases}
 \end{equation}
 
-\textbf{Incremental iSAM2 with Bayes Trees:} Standard batch solvers re-factorize the entire Hessian matrix $\mat{H} = \mat{J}^\top \mat{\Sigma}^{-1} \mat{J}$ at every step ($\mathcal{O}(V^3)$ complexity). iSAM2 converts the factor graph into a chordal Bayes Tree using variable elimination. When new measurements arrive from the latest frame, only the direct causal paths and affected subtrees in the Bayes Tree are updated using local Givens rotations, achieving constant-time $\mathcal{O}(1)$ updates during nominal motion.
+\textbf{Incremental iSAM2 with Bayes Trees:} Standard batch solvers re-factorize the entire Hessian matrix $\mat{H} = \mat{J}^\top \mat{\Sigma}^{-1} \mat{J}$ at every step ($\mathcal{O}(V^3)$ complexity). iSAM2 converts the factor graph into a chordal Bayes Tree using variable elimination. When new measurements arrive from the latest frame, only the direct causal paths and affected subtrees in the Bayes Tree are updated using local Givens rotations, achieving \emph{amortized} constant-time $\mathcal{O}(1)$ updates during nominal straight-line motion (where the set of affected variables remains bounded).
 
 \section{Full Keyframe Visual-Inertial SLAM (ORB-SLAM3)}
 ORB-SLAM3 represents the complete keyframe-based visual-inertial SLAM paradigm. Its pipeline operates over three concurrent CPU threads:
@@ -462,9 +607,9 @@ Full ORB descriptor extraction is executed exclusively when geometric covisibili
 \section{Hardware-Accelerated GPU SLAM (NVIDIA cuVSLAM)}
 NVIDIA cuVSLAM offloads all compute-heavy image processing and non-linear least squares kernels to NVIDIA CUDA streams:
 \begin{itemize}
-    \item \textbf{CUDA Parallel Stereo Rectification:} Unrectified stereo pairs are mapped to rectified coordinates via GPU texture memory interpolation in $< \SI{0.95}{\milli\second}$.
-    \item \textbf{GPU KLT Optical Flow:} CUDA block threads concurrently compute image gradients $\nabla I$ and solve $2 \times 2$ Gauss-Newton patch displacements for hundreds of features in parallel ($\SI{1.81}{\milli\second}$).
-    \item \textbf{Asynchronous CUDA Local BA:} Keyframe local bundle adjustment executes asynchronously on secondary CUDA streams without causing mutex lock contention on the frontend tracking stream.
+    \item \textbf{CUDA Parallel Stereo Rectification:} Unrectified stereo pairs are mapped to rectified coordinates via GPU texture memory interpolation in $\SI{0.95}{\milli\second}$ (mean), $\SI{1.19}{\milli\second}$ (P95).
+    \item \textbf{GPU KLT Optical Flow:} CUDA block threads concurrently compute image gradients $\nabla I$ and solve $2 \times 2$ Gauss-Newton patch displacements for hundreds of features in parallel ($\SI{1.87}{\milli\second}$ mean, $\SI{2.34}{\milli\second}$ P95).
+    \item \textbf{Asynchronous CUDA Local BA:} Keyframe local bundle adjustment executes asynchronously on secondary CUDA streams ($\SI{8.28}{\milli\second}$ mean) without causing mutex lock contention on the frontend tracking stream.
 \end{itemize}
 
 % =============================================================================
@@ -508,45 +653,51 @@ Table~\ref{tab:detailed_system_matrix} presents an exhaustive architectural comp
 \end{table}
 
 \section{Thread Concurrency and Inter-Thread Dynamics}
+To evaluate real-time determinism and identify computational contention points, we profiled the execution timelines of all five state estimation paradigms at microsecond resolution. Figures~\ref{fig:all_gantt_charts} and \ref{fig:all_gantt_charts_part2} present the comparative Gantt charts depicting thread scheduling, queue latencies, and inter-thread synchronization intervals across the five systems.
 
-\begin{figure}[H]
+\begin{figure}[p]
     \centering
-    \begin{subfigure}[b]{0.48\textwidth}
+    \begin{subfigure}[b]{\textwidth}
         \centering
         \includegraphics[width=\textwidth]{1_openvins_gantt_chart.png}
-        \caption{OpenVINS: Single-Thread Sequential MSCKF.}
+        \caption{OpenVINS: Detailed sub-module execution timeline on a single primary MSCKF thread.}
         \label{fig:gantt_openvins}
     \end{subfigure}
-    \hfill
-    \begin{subfigure}[b]{0.48\textwidth}
+    \vspace{0.8em}
+    \begin{subfigure}[b]{\textwidth}
         \centering
         \includegraphics[width=\textwidth]{2_kimera_gantt_chart.png}
-        \caption{Kimera-VIO: 2-Thread Concurrent Pipeline.}
+        \caption{Kimera-VIO: Frontend tracking and asynchronous iSAM2 optimization timeline.}
         \label{fig:gantt_kimera}
     \end{subfigure}
-    \vskip\baselineskip
-    \begin{subfigure}[b]{0.48\textwidth}
+    \caption{Detailed execution timeline and sub-module profiling for filtering and fixed-lag smoothing paradigms (OpenVINS and Kimera-VIO).}
+    \label{fig:all_gantt_charts}
+\end{figure}
+
+\begin{figure}[p]
+    \centering
+    \begin{subfigure}[b]{\textwidth}
         \centering
         \includegraphics[width=\textwidth]{3_orbslam3_gantt_chart.png}
-        \caption{ORB-SLAM3 (Original): 3-Thread CPU Contention.}
+        \caption{Baseline ORB-SLAM3: Tracking thread bottlenecks and keyframe local mapping contention.}
         \label{fig:gantt_orbslam3}
     \end{subfigure}
-    \hfill
-    \begin{subfigure}[b]{0.48\textwidth}
+    \vspace{0.8em}
+    \begin{subfigure}[b]{\textwidth}
         \centering
         \includegraphics[width=\textwidth]{5_orbslam3_klt_gantt_chart.png}
-        \caption{ORB-SLAM3 (Hybrid KLT): Multi-Frame Pipeline.}
+        \caption{Hybrid KLT ORB-SLAM3: Fast optical flow non-keyframe propagation vs. baseline.}
         \label{fig:gantt_orbslam3_klt}
     \end{subfigure}
-    \vskip\baselineskip
-    \begin{subfigure}[b]{0.48\textwidth}
+    \vspace{0.8em}
+    \begin{subfigure}[b]{\textwidth}
         \centering
         \includegraphics[width=\textwidth]{4_cuvslam_gantt_chart.png}
-        \caption{NVIDIA cuVSLAM: 3 GPU Concurrent Streams.}
+        \caption{NVIDIA cuVSLAM: Multi-stream GPU execution timeline for frontend and local BA.}
         \label{fig:gantt_cuvslam}
     \end{subfigure}
-    \caption{Detailed Gantt Chart execution timelines comparing thread concurrency, latency distribution, and CPU/GPU resource utilization across all five benchmarked state estimation systems.}
-    \label{fig:all_gantt_charts}
+    \caption{Detailed execution timelines comparing full keyframe SLAM (baseline vs. hybrid KLT) and GPU-accelerated cuVSLAM.}
+    \label{fig:all_gantt_charts_part2}
 \end{figure}
 
 \subsection{OpenVINS Thread Dynamics}
@@ -586,9 +737,9 @@ As demonstrated in Figure~\ref{fig:gantt_orbslam3_klt}, the integrated \textbf{H
 \subsection{NVIDIA cuVSLAM GPU Pipeline Dynamics}
 Figure~\ref{fig:gantt_cuvslam} illustrates the high-throughput architecture of cuVSLAM:
 \begin{itemize}
-    \item Stereo rectification and KLT feature tracking execute on CUDA cores in $\SI{1.81}{\milli\second}$.
-    \item Complete end-to-end stereo frame tracking takes $\SI{5.80}{\milli\second}$ ($>170\,\text{FPS}$).
-    \item Local bundle adjustment executes asynchronously on secondary CUDA streams ($\SI{8.62}{\milli\second}$), completely offloading the host CPU.
+    \item Stereo rectification executes on CUDA texture-memory kernels in $\SI{0.95}{\milli\second}$ (mean), followed by GPU Pyramidal KLT optical flow in $\SI{1.87}{\milli\second}$ (mean), and GPU pose optimization in $\SI{2.42}{\milli\second}$ (mean).
+    \item Complete end-to-end stereo frame tracking (rectification + KLT + IMU + pose) takes $\SI{5.92}{\milli\second}$ median ($>170\,\text{FPS}$), with peak latency $\SI{12.40}{\milli\second}$ only when loop detection and pose graph optimization are triggered.
+    \item Local bundle adjustment executes asynchronously on secondary CUDA streams ($\SI{8.28}{\milli\second}$ mean, $\SI{8.79}{\milli\second}$ median), completely offloading the host CPU.
 \end{itemize}
 
 % =============================================================================
@@ -600,7 +751,7 @@ Figure~\ref{fig:gantt_cuvslam} illustrates the high-throughput architecture of c
 To guarantee mathematical reproducibility, eliminate cross-framework dependency conflicts, and isolate algorithms from OS scheduling noise or background thrashing, all benchmarks were executed within a containerized benchmarking harness:
 \begin{itemize}
     \item \textbf{Target Hardware:} Laptop workstation featuring an 8-core/16-thread x86\_64 processor, NVIDIA GeForce RTX 3050 Laptop GPU (CUDA Compute Capability 8.6, Tensor Cores), $\SI{16}{\giga\byte}$ RAM, and high-speed NVMe PCIe storage.
-    \item \textbf{Layered Container Architecture (\path{slam-base:latest}):} A unified base Docker layer encapsulating Ubuntu 22.04 LTS, ROS 2 Humble Hawksbill, OpenCV 4.5.4, Eigen 3.4.0, Ceres Solver 2.0.0, Boost, NVIDIA Container Toolkit (CUDA 13.0 GPU passthrough), and the \path{evo} trajectory evaluation suite. Algorithm-specific modules (\path{cuvslam}, \path{openvins}, \path{orbslam3}, \path{kimera}) extend this identical foundation layer, guaranteeing 100\% compiler and library parity.
+    \item \textbf{Layered Container Architecture (\path{slam-base:latest}):} A unified base Docker layer encapsulating Ubuntu 22.04 LTS, ROS 2 Humble Hawksbill, OpenCV 4.5.4, Eigen 3.4.0, Ceres Solver 2.0.0, Boost, NVIDIA Container Toolkit (CUDA 12.4 GPU passthrough), and the \path{evo} trajectory evaluation suite. Algorithm-specific modules (\path{cuvslam}, \path{openvins}, \path{orbslam3}, \path{kimera}) extend this identical foundation layer, guaranteeing 100\% compiler and library parity.
     \item \textbf{Deterministic Resource Isolation:} Every benchmark container is strictly constrained via Linux control groups (\path{cgroups}) to bounded CPU cores (\path{--cpus=2}) and bounded memory quotas (\path{--memory=3g}) executed with low scheduling priority (\path{nice -n 19}). This enforces reproducible latency measurements and prevents memory thrashing across benchmark runs.
     \item \textbf{Standardized Trajectory Protocol:} All algorithms output synchronized 8-tuple TUM trajectory logs ($[t, x, y, z, q_x, q_y, q_z, q_w]$) directly evaluated against reference ground truth via automated \path{evo_ape} and \path{evo_rpe} pipelines.
 \end{itemize}
@@ -608,7 +759,7 @@ To guarantee mathematical reproducibility, eliminate cross-framework dependency 
 \section{Dataset Characteristics and Environmental Challenges}
 
 \subsection{EuRoC MAV Dataset (Indoor Micro-Aerial Vehicle)}
-The EuRoC MAV dataset is the primary international standard for evaluating visual-inertial state estimation. Sensor configuration consists of:
+The EuRoC MAV dataset~\cite{euroc} is the primary international standard for evaluating visual-inertial state estimation. Sensor configuration consists of:
 \begin{itemize}
     \item \textbf{Visual Sensor:} MT9V034 stereo monochrome global shutter WVGA cameras ($\SI{752}{\pixel} \times \SI{480}{\pixel}$) recording at $\SI{20}{\hertz}$ with a baseline $b = \SI{11.0}{\centi\meter}$.
     \item \textbf{Inertial Sensor:} ADIS16448 industrial MEMS IMU providing 3-axis acceleration and angular rate at $\SI{200}{\hertz}$.
@@ -625,7 +776,7 @@ To test algorithmic limits under severe real-world environmental degradation, we
 \end{itemize}
 
 \subsection{TUM RGB-D / Monocular Dataset}
-To evaluate tracking throughput and keyframe generation under rapid handheld motions, we benchmark sequence \textbf{\path{rgbd_dataset_freiburg1_xyz}}:
+To evaluate tracking throughput and keyframe generation under rapid handheld motions, we benchmark sequence \textbf{\path{rgbd_dataset_freiburg1_xyz}} from the TUM RGB-D benchmark dataset~\cite{sturm2012tum}:
 \begin{itemize}
     \item \textbf{Environment:} Indoor office desktop with 3D objects and feature-rich visual textures.
     \item \textbf{Characteristics:} 798 high-rate monocular video frames with rapid translational motions along all three coordinate axes.
@@ -712,12 +863,38 @@ Table~\ref{tab:evo_accuracy_full} presents the complete statistical Absolute Pos
     \label{fig:ch6_comprehensive_plots}
 \end{figure}
 
+\begin{figure}[H]
+    \centering
+    \begin{subfigure}[b]{0.32\textwidth}
+        \centering
+        \includegraphics[width=\textwidth]{open_vins_ape_map.png}
+        \caption{OpenVINS: Continuous drift.}
+        \label{fig:ch6_ape_openvins}
+    \end{subfigure}
+    \hfill
+    \begin{subfigure}[b]{0.32\textwidth}
+        \centering
+        \includegraphics[width=\textwidth]{kimera_ape_map.png}
+        \caption{Kimera-VIO: Loop drift.}
+        \label{fig:ch6_ape_kimera}
+    \end{subfigure}
+    \hfill
+    \begin{subfigure}[b]{0.32\textwidth}
+        \centering
+        \includegraphics[width=\textwidth]{orb_slam3_ape_map.png}
+        \caption{ORB-SLAM3: Bounded error.}
+        \label{fig:ch6_ape_orbslam3}
+    \end{subfigure}
+    \caption{Spatial distribution of Absolute Pose Error (APE) colormapped onto estimated 3D trajectories on EuRoC MH\_01\_easy. Dead-reckoning pipelines (OpenVINS, Kimera-VIO) accumulate monotonic translational drift along unlooped path segments, whereas ORB-SLAM3's place recognition and global bundle adjustment maintain bounded, sub-decimeter error ($< \SI{0.09}{\meter}$) throughout the entire volume.}
+    \label{fig:ch6_ape_maps}
+\end{figure}
+
 \subsection{Analysis of Accuracy Findings}
-Detailed inspection of Figure~\ref{fig:ch6_comprehensive_plots} and Table~\ref{tab:evo_accuracy_full} reveals critical insights into state estimation dynamics:
+Detailed inspection of Figure~\ref{fig:ch6_comprehensive_plots}, Figure~\ref{fig:ch6_ape_maps}, and Table~\ref{tab:evo_accuracy_full} reveals critical insights into state estimation dynamics:
 \begin{enumerate}
     \item \textbf{Preservation of Centimeter-Level Precision in Hybrid KLT SLAM:} The hybrid ORB-SLAM3 KLT pipeline matches the state-of-the-art accuracy of full SLAM ($\text{ATE RMSE} = \SI{0.0612}{\meter}$ vs $\SI{0.0596}{\meter}$ for the baseline), confirming that sparse inter-frame optical flow tracking does not introduce odometric drift or compromise DBoW place recognition and global bundle adjustment.
-    \item \textbf{The Power of Full SLAM Loop Closures:} Both baseline and hybrid ORB-SLAM3 maintain sub-decimeter accuracy throughout the trajectory. When the robot revisits known areas at $t = \SI{60}{\second}$ and $t = \SI{140}{\second}$ (Figure~\ref{fig:ch6_xyz_errors}), DBoW place recognition on keyframes triggers loop closures and essential graph optimization, resetting any accumulated drift.
-    \item \textbf{Continuous Metric Drift in Pure Odometry:} OpenVINS ($\text{RMSE} = \SI{3.0476}{\meter}$) and Kimera-VIO ($\text{RMSE} = \SI{4.1125}{\meter}$) suffer from continuous drift over the $\SI{80.6}{\meter}$ trajectory due to the lack of loop closure, despite maintaining smooth high-rate local poses and bounded angular errors ($<\pm 1.5^\circ$, Figure~\ref{fig:ch6_rpy_errors}).
+    \item \textbf{The Power of Full SLAM Loop Closures:} Both baseline and hybrid ORB-SLAM3 maintain sub-decimeter accuracy throughout the trajectory. As shown in the spatial APE heatmaps (Figure~\ref{fig:ch6_ape_orbslam3}) and error box plots (Figure~\ref{fig:ch6_box_plot}), the 3D trajectory overlay (Figure~\ref{fig:ch6_traj_overlay}) aligns tightly with ground truth. When the robot revisits known areas at $t = \SI{60}{\second}$ and $t = \SI{140}{\second}$ (Figure~\ref{fig:ch6_xyz_errors}), DBoW place recognition on keyframes triggers loop closures and essential graph optimization, resetting any accumulated drift.
+    \item \textbf{Continuous Metric Drift in Pure Odometry:} OpenVINS ($\text{RMSE} = \SI{3.0476}{\meter}$, Figure~\ref{fig:ch6_ape_openvins}) and Kimera-VIO ($\text{RMSE} = \SI{4.1125}{\meter}$, Figure~\ref{fig:ch6_ape_kimera}) suffer from continuous drift over the $\SI{80.6}{\meter}$ trajectory due to the lack of loop closure, despite maintaining smooth high-rate local poses and bounded angular errors ($<\pm 1.5^\circ$, Figure~\ref{fig:ch6_rpy_errors}).
     \item \textbf{GPU cuVSLAM State Estimation:} cuVSLAM achieves $\text{RMSE} = \SI{0.0812}{\meter}$, delivering real-time estimation at $>170\,\text{FPS}$ with zero CPU core loading.
 \end{enumerate}
 
@@ -746,6 +923,34 @@ Table~\ref{tab:ch6_openvins_detailed_timing} provides a comprehensive statistica
 \end{tabularx}
 \end{table}
 
+In contrast to the CPU-bound execution profile of OpenVINS, Table~\ref{tab:ch6_cuvslam_detailed_timing} details the microsecond-level timing of individual GPU processing stages in NVIDIA cuVSLAM over 60 profiled frames. Parallel GPU kernels accelerate stereo rectification to $\SI{0.95}{\milli\second}$ and KLT feature tracking to $\SI{1.87}{\milli\second}$, achieving a total tracking frontend latency of only $\SI{5.70}{\milli\second}$ mean ($\SI{5.92}{\milli\second}$ median).
+
+\begin{table}[H]
+\centering
+\small
+\caption{Detailed GPU Module Timing Breakdown for NVIDIA cuVSLAM on EuRoC MH\_01\_easy (60 Profiled Frames).}
+\label{tab:ch6_cuvslam_detailed_timing}
+\begin{tabularx}{\textwidth}{l Y Y Y Y Y Y Y}
+\toprule
+\textbf{GPU Module} & \textbf{Count} & \textbf{Mean (ms)} & \textbf{Median (ms)} & \textbf{Std (ms)} & \textbf{Min (ms)} & \textbf{Max (ms)} & \textbf{P95 (ms)} \\
+\midrule
+\texttt{GPU Stereo Rectification} & 60 & 0.9477 & 0.9415 & 0.1172 & 0.6730 & 1.2300 & 1.1900 \\
+\texttt{GPU Feature Tracking (KLT)} & 60 & 1.8726 & 1.8500 & 0.2651 & 1.3440 & 2.6830 & 2.3380 \\
+\texttt{IMU Pre-Integration} & 60 & 0.4612 & 0.4695 & 0.0727 & 0.3160 & 0.6350 & 0.6290 \\
+\texttt{GPU Pose Optimization} & 60 & 2.4191 & 2.4445 & 0.2932 & 1.6370 & 3.0300 & 2.8650 \\
+\texttt{Keyframe Insertion} & 15 & 1.2791 & 1.3140 & 0.2012 & 0.8670 & 1.5730 & 1.5730 \\
+\texttt{GPU Local Bundle Adj.} & 15 & 8.2832 & 8.7870 & 1.3203 & 5.6180 & 9.6010 & 9.6010 \\
+\texttt{Map Point Maintenance} & 15 & 1.0916 & 1.0820 & 0.1707 & 0.7840 & 1.4480 & 1.4480 \\
+\texttt{GPU Loop Detection} & 3 & 4.8933 & 5.0390 & 0.2787 & 4.5720 & 5.0690 & 5.0690 \\
+\texttt{Pose Graph Opt.\ (PGO)} & 3 & 11.2367 & 10.4340 & 2.1665 & 9.5860 & 13.6900 & 13.6900 \\
+\midrule
+\textbf{Tracking Frontend (Sum)} & \textbf{60} & \textbf{5.7006} & \textbf{5.9155} & --- & \textbf{4.9570} & \textbf{7.5480} & \textbf{7.0220} \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+A comprehensive cross-algorithm comparison of computational latency, keyframe density, sustainable frame rates, and CPU utilization across all five systems on EuRoC MH\_01\_easy is presented in Table~\ref{tab:ch6_comparative_timing} and visualized in Figure~\ref{fig:ch6_5way_timing}.
+
 \begin{figure}[H]
     \centering
     \includegraphics[width=0.92\textwidth]{comparative_5way_timing.png}
@@ -756,28 +961,30 @@ Table~\ref{tab:ch6_openvins_detailed_timing} provides a comprehensive statistica
 \begin{table}[H]
 \centering
 \small
-\caption{Cross-Algorithm Computational Latency, Keyframe Density, and Throughput Comparison.}
+\caption{Cross-Algorithm Computational Latency, Keyframe Density, and Throughput Comparison on EuRoC MH\_01\_easy.}
 \label{tab:ch6_comparative_timing}
 \begin{tabularx}{\textwidth}{>{\raggedright\arraybackslash}p{2.8cm} *{5}{>{\centering\arraybackslash}X}}
 \toprule
 \textbf{Performance Metric} & \textbf{OpenVINS} & \textbf{Kimera-VIO} & \textbf{ORB-SLAM3 (Base)} & \textbf{ORB-SLAM3 (Hybrid)} & \textbf{cuVSLAM (GPU)} \\
 \midrule
-\textbf{Mean Tracking Latency} & $\SI{8.72}{\milli\second}$ & $\SI{6.35}{\milli\second}$ & $\SI{54.66}{\milli\second}$ & $\mathbf{\SI{19.00}{\milli\second}}$ (med) & $\SI{1.81}{\milli\second}$ \\
-\textbf{Total Frame Processing} & $\SI{20.62}{\milli\second}$ & $\SI{8.99}{\milli\second}$ & $\SI{55.86}{\milli\second}$ & $\mathbf{\SI{25.15}{\milli\second}}$ & $\SI{5.80}{\milli\second}$ \\
-\textbf{P95 Tail Latency} & $\SI{48.40}{\milli\second}$ & $\SI{18.50}{\milli\second}$ & $\SI{96.40}{\milli\second}$ & $\mathbf{\SI{38.20}{\milli\second}}$ & $\SI{7.20}{\milli\second}$ \\
-\textbf{Max Peak Latency} & $\SI{134.97}{\milli\second}$ & $\SI{59.00}{\milli\second}$ & $\SI{283.30}{\milli\second}$ & $\mathbf{\SI{82.50}{\milli\second}}$ & $\SI{12.40}{\milli\second}$ \\
-\textbf{Keyframes Created (EuRoC)} & N/A & $320\,\text{KFs}$ & $301\,\text{KFs}$ & $\mathbf{181\,\text{KFs}}\;(-40\%)$ & $290\,\text{KFs}$ \\
-\textbf{Max Sustainable FPS} & $\approx 48\,\text{FPS}$ & $\approx 111\,\text{FPS}$ & $\approx 18\,\text{FPS}$ & $\mathbf{\approx 40-45\,\text{FPS}}\;(1.57\times)$ & $\approx 172\,\text{FPS}$ \\
+\textbf{Mean Tracking Latency} & $\SI{8.72}{\milli\second}$ & $\SI{6.35}{\milli\second}$ & $\SI{54.66}{\milli\second}$ & $\mathbf{\SI{19.00}{\milli\second}}$ (med) & $\SI{1.87}{\milli\second}$ (KLT only) \\
+\textbf{Total Frame Processing} & $\SI{20.62}{\milli\second}$ & $\SI{8.99}{\milli\second}$ & $\SI{55.86}{\milli\second}$ & $\mathbf{\SI{25.15}{\milli\second}}$ & $\SI{5.92}{\milli\second}$ (median) \\
+\textbf{P95 Tail Latency} & $\SI{48.40}{\milli\second}$ & $\SI{18.50}{\milli\second}$ & $\SI{96.40}{\milli\second}$ (P95) & $\mathbf{\SI{38.20}{\milli\second}}$ & $\SI{7.20}{\milli\second}$ \\
+\textbf{Max Peak Latency} & $\SI{134.97}{\milli\second}$ & $\SI{59.00}{\milli\second}$ & $\SI{283.30}{\milli\second}$ & $\mathbf{\SI{82.50}{\milli\second}}$ & $\SI{33.07}{\milli\second}$ (incl.\ PGO) \\
+\textbf{Keyframes Created (EuRoC)} & N/A & $343\,\text{KFs}^*$ & $301\,\text{KFs}$ & $\mathbf{181\,\text{KFs}}\;(-40\%)$ & $15\,\text{KFs}^{**}$ \\
+\textbf{Max Sustainable FPS} & $\approx 48\,\text{FPS}$ & $\approx 111\,\text{FPS}$ & $\approx 18\,\text{FPS}$ & $\mathbf{\approx 40-45\,\text{FPS}}\;(1.57\times)$ & $>170\,\text{FPS}$ \\
 \textbf{Host CPU Utilization} & $1.0\,\text{Core}$ & $1.8\,\text{Cores}$ & $3.2\,\text{Cores}$ & $\mathbf{1.9\,\text{Cores}}$ & $0.2\,\text{Cores}$ \\
 \bottomrule
 \end{tabularx}
+\vspace{0.3em}
+\footnotesize{$^*$ Kimera keyframe count from \texttt{output\_backendTiming.csv} (343 backend iSAM2 update steps on MH\_01). \quad $^{**}$ cuVSLAM reports only explicit GPU-side keyframe insertion events logged in the profiling CSV; the internal visual landmark map update cadence is higher.}
 \end{table}
 
 \section{The Feature Extraction Bottleneck and Hybrid KLT Resolution}
 A foundational finding of this benchmark is that \textbf{ORB feature extraction accounts for over $85\%$ of the total CPU tracking budget in baseline ORB-SLAM3}:
 \begin{itemize}
     \item Computing FAST corners across 8 octave levels, determining patch intensity centroids for rotational orientation, and computing 256-bit steered BRIEF descriptors consumes $\approx \SI{46.2}{\milli\second}$ on CPU per frame.
-    \item By contrast, sparse pyramidal KLT optical flow tracks existing corner patches via iterative Gauss-Newton updates in $\SI{6.35}{\milli\second} - \SI{8.72}{\milli\second}$ on CPU and $\SI{1.81}{\milli\second}$ on GPU.
+    \item By contrast, sparse pyramidal KLT optical flow~\cite{bouguet2001klt} tracks existing corner patches via iterative Gauss-Newton updates in $\SI{6.35}{\milli\second} - \SI{8.72}{\milli\second}$ on CPU and $\SI{1.87}{\milli\second}$ on GPU (CUDA, mean measured across 60 profiled frames).
     \item In the \textbf{Hybrid ORB-SLAM3 KLT} system, executing optical flow tracking on $90\%$ of non-keyframes and reserving ORB extraction strictly for sparse keyframes achieves a $\mathbf{36.1\%}$ latency reduction, raising sustainable CPU tracking throughput from $\approx 18\,\text{FPS}$ to $\approx 40-45\,\text{FPS}$.
 \end{itemize}
 
@@ -799,12 +1006,38 @@ The integrated Hybrid ORB-SLAM3 KLT pipeline was benchmarked across two standard
 \end{itemize}
 
 \section{Real-World Robustness on Outdoor Snow Dataset}
-On the Suedhoehe outdoor snow sequence, we observed distinct operational behaviors:
+The Suedhoehe GPS Schnee 02 outdoor winter sequence ($\SI{141.5}{\second}$, RTK-GPS ground truth, 4244 reference poses) exposed severe algorithmic failure modes under low-texture snow conditions. Table~\ref{tab:ch6_suedhoehe_status} summarizes the operational status of each algorithm.
+
+\begin{table}[H]
+\centering
+\small
+\caption{Algorithm Operational Status on Suedhoehe Outdoor Snow Sequence.}
+\label{tab:ch6_suedhoehe_status}
+\begin{tabularx}{\textwidth}{>{\raggedright\arraybackslash}p{3.0cm} >{\centering\arraybackslash}X >{\centering\arraybackslash}X >{\centering\arraybackslash}X >{\raggedright\arraybackslash}X}
+\toprule
+\textbf{Algorithm} & \textbf{Frames Tracked} & \textbf{Duration (s)} & \textbf{Coverage (\%)} & \textbf{Status} \\
+\midrule
+\textbf{OpenVINS} & 3111 & 103.7 & 73\% & Tracked but severely diverged (unbounded drift $>48$ km by sequence end) \\
+\addlinespace
+\textbf{Kimera-VIO} & 363 & 67.9 & 48\% & Lost tracking at $t \approx 68\,\text{s}$ due to insufficient visual features \\
+\addlinespace
+\textbf{ORB-SLAM3} & 557$^*$ & --- & --- & Timing data captured but no trajectory output (repeated relocalization failures) \\
+\addlinespace
+\textbf{cuVSLAM} & --- & --- & --- & Not evaluated on this sequence$^\dagger$ \\
+\bottomrule
+\end{tabularx}
+\vspace{0.3em}
+\footnotesize{$^*$ ORB-SLAM3 produced 557 frames of scoped timing data but failed to generate a stable TUM trajectory file. \quad $^\dagger$ cuVSLAM benchmark on the Suedhoehe dataset was not completed due to sensor driver compatibility constraints with the outdoor rosbag format.}
+\end{table}
+
+Key qualitative observations from the outdoor snow benchmark:
 \begin{itemize}
-    \item \textbf{Descriptor Tracking Degradation:} Snow-covered asphalt caused a $60\%$ drop in repeatable ORB feature detections, occasionally forcing ORB-SLAM3 into relocalization mode.
-    \item \textbf{Optical Flow Robustness:} OpenVINS and Kimera-VIO maintained continuous tracking by locking onto distant tree branches and power line poles, using IMU preintegration to bridge intermittent visual loss.
-    \item \textbf{GPU cuVSLAM Dynamic Adaptation:} cuVSLAM dynamically increased corner extraction counts on GPU, tracking $>200$ points across all snow frames without latency degradation.
+    \item \textbf{Descriptor Tracking Degradation:} The uniform white snow surface caused a severe drop in repeatable ORB feature detections across all octave levels. ORB-SLAM3 entered repeated relocalization cycles, with the tracking thread unable to maintain a stable covisibility graph, ultimately producing no usable trajectory.
+    \item \textbf{Optical Flow Partial Resilience:} OpenVINS maintained continuous KLT tracking for $73\%$ of the sequence by locking onto distant tree branches, power line poles, and building edges, using IMU preintegration to bridge intermittent visual loss periods. However, the absence of loop closure caused monotonic translational drift exceeding $\SI{48}{\kilo\meter}$ by sequence end---demonstrating the fundamental limitation of pure odometry on visually degraded paths.
+    \item \textbf{Fixed-Lag Smoother Fragility:} Kimera-VIO's iSAM2 backend lost tracking entirely at $t \approx \SI{68}{\second}$ when the camera traversed a fully snow-covered open field with no detectable visual features within the stereo baseline range.
 \end{itemize}
+These results highlight a critical finding: \textbf{no evaluated algorithm achieved reliable long-duration tracking on the outdoor snow sequence}, confirming that low-texture outdoor environments remain an open challenge for current visual-inertial state estimation.
+
 
 % =============================================================================
 % CHAPTER 7: DESIGN GUIDELINES AND FUTURE WORK
@@ -857,10 +1090,20 @@ To resolve the fundamental conflict between KLT optical flow speed and descripto
 
 By executing lightweight KLT tracking on $90\%$ of incoming frames and restricting ORB descriptor extraction exclusively to sparse keyframes ($2-\SI{5}{\hertz}$), this architecture achieves the centimeter-level accuracy of full SLAM ($\text{ATE RMSE} = \SI{0.0612}{\meter}$) while maintaining low tracking latency ($\SI{19.00}{\milli\second}$ median, $>40\,\text{FPS}$) on resource-constrained embedded CPUs.
 
+\section{Limitations}
+Several limitations of this benchmark study should be acknowledged:
+\begin{enumerate}
+    \item \textbf{Single-Run Evaluation:} All reported accuracy metrics represent single benchmark executions. Due to non-deterministic thread scheduling, RANSAC randomization, and OS-level scheduling jitter, multi-run statistical variance (e.g., 10-run median $\pm$ IQR) would strengthen confidence in the reported numbers. This is particularly relevant for ORB-SLAM3, which exhibits higher run-to-run variance due to its multi-threaded architecture.
+    \item \textbf{Limited Outdoor Dataset Coverage:} The Suedhoehe snow sequence exposed severe failure modes in all tested algorithms, but no system produced a reliable trajectory for quantitative APE/RPE analysis. Broader outdoor evaluation (e.g., KITTI, 4Seasons, TartanAir) would provide a more comprehensive robustness assessment.
+    \item \textbf{Closed-Source cuVSLAM:} NVIDIA cuVSLAM is distributed as a closed-source binary ROS 2 package. While profiling data was collected via NVIDIA's instrumentation API, internal algorithmic details (e.g., exact GPU BA solver, loop closure descriptor type, keyframe selection policy) could not be independently verified or modified.
+    \item \textbf{Containerized Resource Constraints:} All benchmarks were executed under Docker \texttt{cgroups} constraints (\texttt{--cpus=2}, \texttt{--memory=3g}). While this ensures reproducibility, it may not reflect performance on unconstrained embedded platforms (e.g., NVIDIA Jetson Orin with dedicated GPU memory) where cuVSLAM and ORB-SLAM3 may exhibit different latency profiles.
+    \item \textbf{Monocular Scale Ambiguity on TUM:} The TUM RGB-D benchmark was evaluated in monocular mode (ORB-SLAM3 only). Monocular SLAM cannot recover metric scale without external priors, so only relative timing comparisons (not absolute trajectory accuracy) are reported for this dataset.
+\end{enumerate}
+
 % =============================================================================
 % CHAPTER 8: CONCLUSION
 % =============================================================================
-\chapter{Conclusion}
+\chapter{Conclusion and Future Work}
 This research presented an exhaustive empirical and architectural benchmark of modern Visual-Inertial Odometry and SLAM systems, evaluating OpenVINS, Kimera-VIO, Baseline ORB-SLAM3, Hybrid KLT ORB-SLAM3, and NVIDIA cuVSLAM across indoor MAV benchmarks and outdoor snow datasets.
 
 Key takeaways include:
@@ -870,7 +1113,19 @@ Key takeaways include:
     \item \textbf{High-Efficiency Hybrid Tracking Breakthrough:} The implemented Hybrid ORB-SLAM3 KLT system achieves a $\mathbf{36.1\%}$ reduction in frame tracking latency ($\SI{25.15}{\milli\second}$ mean on TUM, $\SI{19.00}{\milli\second}$ median on EuRoC), reduces keyframe insertion and backend optimization load by $\mathbf{40\%}$, and completely eliminates thread lock stalls while matching the precision of full SLAM ($\text{RMSE} = \SI{0.0612}{\meter}$).
     \item \textbf{GPU Acceleration as the New High-Throughput Standard:} NVIDIA cuVSLAM eliminates CPU bottlenecks by executing stereo rectification, optical flow, and local bundle adjustment on CUDA cores, delivering real-time estimation at over $170\,\text{FPS}$ with $\text{ATE RMSE} < \SI{0.09}{\meter}$.
     \item \textbf{Architectural Evolution:} Hybridizing high-rate KLT optical flow on non-keyframes with asynchronous descriptor extraction on sparse keyframes resolves the latency-consistency dilemma, representing the optimal design pattern for CPU-constrained mobile robotics.
+    \item \textbf{Outdoor Robustness Gap:} The Suedhoehe outdoor snow benchmark revealed that all tested algorithms failed to maintain reliable long-duration tracking under severe low-texture conditions, highlighting the need for multi-modal sensing (LiDAR, radar) or learned visual features to complement classical geometric approaches.
 \end{enumerate}
+
+\section{Future Work}
+Several promising directions emerge from this benchmark:
+\begin{itemize}
+    \item \textbf{Learned Feature Descriptors:} Replacing hand-crafted ORB descriptors with neural network-based features (e.g., SuperPoint and SuperGlue) could improve robustness to illumination changes, low-texture surfaces, and seasonal appearance variation while maintaining real-time GPU inference.
+    \item \textbf{Multi-Camera Hybrid KLT:} Extending the dual-rate KLT architecture to multi-camera setups (surround-view, fisheye) would increase the observable feature volume and reduce tracking failures during rapid rotational maneuvers.
+    \item \textbf{Tightly-Coupled LiDAR-Visual-Inertial Fusion:} Augmenting the visual pipeline with sparse LiDAR range measurements (e.g., from solid-state LiDAR) would provide robust depth priors in textureless outdoor environments where pure visual tracking fails.
+    \item \textbf{Edge GPU Deployment:} Porting the Hybrid KLT architecture to NVIDIA Jetson Orin embedded GPUs and combining CPU-side KLT tracking with GPU-accelerated backend bundle adjustment could achieve the best of both paradigms on power-constrained platforms ($<\SI{30}{\watt}$).
+    \item \textbf{Multi-Run Statistical Validation:} Repeating all benchmarks across 10+ runs with different random seeds and thread scheduling priorities would quantify run-to-run variance and provide confidence intervals for all reported metrics.
+\end{itemize}
+
 
 % =============================================================================
 % REFERENCES
@@ -878,7 +1133,7 @@ Key takeaways include:
 \begin{thebibliography}{99}
 
 \bibitem{orbslam3}
-C.~Campos, R.~Elvira, J.~J.~G\'omez Rodr\'iguez, J.~M.~M.~Montiel, and J.~D.~Tard\'os,
+C.~Campos, R.~Elvira, J.~J.~G\'omez-Rodr\'iguez, J.~M.~M.~Montiel, and J.~D.~Tard\'os,
 ``ORB-SLAM3: An Accurate Open-Source Library for Visual, Visual-Inertial, and Multimap SLAM,''
 \emph{IEEE Transactions on Robotics}, vol.~37, no.~6, pp.~1874--1890, 2021.
 
@@ -904,11 +1159,11 @@ in \emph{Proc. IEEE Int. Conf. Robot. Autom. (ICRA)}, 2007, pp.~3565--3572.
 
 \bibitem{dellaert2012isam2}
 M.~Kaess, H.~Johannsson, R.~Roberts, V.~Ila, J.~J.~Leonard, and F.~Dellaert,
-``iSAM2: Incremental Smoothing and Mapping with the Bayes Tree,''
+``iSAM2: Incremental Smoothing and Mapping Using the Bayes Tree,''
 \emph{The International Journal of Robotics Research}, vol.~31, no.~2, pp.~216--235, 2012.
 
 \bibitem{euroc}
-M.~Burri, J.~Nikolic, P.~Gohl, T.~Schneider, J.~Pan, R.~D{\"u}rten, R.~Freimann, Z.~Chen, T.~Lowe, and R.~Siegwart,
+M.~Burri, J.~Nikolic, P.~Gohl, T.~Schneider, J.~Rehder, S.~Omari, M.~W.~Achtelik, and R.~Siegwart,
 ``The EuRoC micro aerial vehicle datasets,''
 \emph{The International Journal of Robotics Research}, vol.~35, no.~10, pp.~1157--1163, 2016.
 
@@ -922,6 +1177,11 @@ B.~D.~Lucas and T.~Kanade,
 ``An iterative image registration technique with an application to stereo vision,''
 in \emph{Proc. 7th Int. Joint Conf. Artif. Intell. (IJCAI)}, 1981, pp.~674--679.
 
+\bibitem{bouguet2001klt}
+J.-Y.~Bouguet,
+``Pyramidal Implementation of the Lucas Kanade Feature Tracker: Description of the Algorithm,''
+\emph{Intel Corporation, Microprocessor Research Labs}, Tech. Rep., 2001.
+
 \bibitem{cuvslam}
 NVIDIA Corporation,
 ``NVIDIA Isaac ROS Visual SLAM (cuVSLAM) Package Documentation,''
@@ -933,14 +1193,14 @@ S.~Leutenegger, S.~Lynen, M.~Bosse, R.~Siegwart, and P.~Furgale,
 \emph{The International Journal of Robotics Research}, vol.~34, no.~3, pp.~314--334, 2015.
 
 \bibitem{bloesch2017rovio}
-M.~Bloesch, M.~Buraschi, S.~Khattak, and R.~Siegwart,
-``Iterated extended Kalman filter based visual-inertial odometry using direct photometric error formulation,''
-\emph{IEEE Robotics and Automation Letters}, vol.~2, no.~2, pp.~721--728, 2017.
+M.~Bloesch, M.~Burri, S.~Omari, M.~Hutter, and R.~Siegwart,
+``Iterated extended Kalman filter based visual-inertial odometry using direct photometric feedback,''
+\emph{The International Journal of Robotics Research}, vol.~36, no.~10, pp.~1053--1072, 2017.
 
 \bibitem{engel2017dso}
 J.~Engel, V.~Koltun, and D.~Cremers,
-``Direct sparse odometry,''
-\emph{IEEE Transactions on Pattern Analysis and Machine Intelligence}, vol.~40, no.~3, pp.~611--625, 2017.
+``Direct Sparse Odometry,''
+\emph{IEEE Transactions on Pattern Analysis and Machine Intelligence}, vol.~40, no.~3, pp.~611--625, 2018.
 
 \bibitem{murartal2017orbslam2}
 R.~Mur-Artal and J.~D.~Tard\'os,
@@ -957,15 +1217,15 @@ D.~G\'alvez-L\'opez and J.~D.~Tard\'os,
 ``Bags of Binary Words for Fast Place Recognition in Image Sequences,''
 \emph{IEEE Transactions on Robotics}, vol.~28, no.~5, pp.~1188--1197, 2012.
 
-\bibitem{eckenhoff2019fej}
-K.~Eckenhoff, P.~Geneva, and G.~Huang,
-``High-accuracy preintegration for visual-inertial navigation,''
-\emph{IEEE Transactions on Robotics}, vol.~36, no.~1, pp.~260--277, 2019.
+\bibitem{huang2011fej}
+G.~Huang, A.~I.~Mourikis, and S.~I.~Roumeliotis,
+``A First-Estimates Jacobian Extended Kalman Filter for Visual-Inertial Odometry,''
+in \emph{Proc. IEEE Int. Conf. Robot. Autom. (ICRA)}, 2011, pp.~3730--3737.
 
 \bibitem{sola2017micro}
-J.~Sol\`a,
+J.~Sol\`a, J.~Deray, and D.~Atchuthan,
 ``A micro Lie theory for state estimation in robotics,''
-\emph{arXiv preprint arXiv:1812.01537}, 2017.
+\emph{arXiv preprint arXiv:1812.01537}, 2018.
 
 \bibitem{barfoot2017state}
 T.~D.~Barfoot,
