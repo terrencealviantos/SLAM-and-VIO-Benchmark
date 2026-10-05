@@ -213,27 +213,29 @@ Table~\ref{tab:vio_vs_slam_comparison} outlines the architectural and runtime tr
 
 \begin{table}[H]
 \centering
-\small
+\footnotesize
 {\renewcommand{\arraystretch}{1.3}
-\caption{Architectural and Runtime Comparison Across State Estimation Paradigms.}
+\caption{Architectural and Runtime Comparison Across the Five Evaluated Paradigms.}
 \label{tab:vio_vs_slam_comparison}
-\begin{tabularx}{\textwidth}{>{\raggedright\arraybackslash}p{2.6cm} >{\raggedright\arraybackslash}X >{\raggedright\arraybackslash}X >{\raggedright\arraybackslash}X >{\raggedright\arraybackslash}X}
+\begin{tabularx}{\textwidth}{>{\raggedright\arraybackslash}p{2.1cm} >{\raggedright\arraybackslash}X >{\raggedright\arraybackslash}X >{\raggedright\arraybackslash}X >{\raggedright\arraybackslash}X >{\raggedright\arraybackslash}X}
 \toprule
-\textbf{Paradigm} & \textbf{Filter VIO (OpenVINS)} & \textbf{Smoother VIO (Kimera-VIO)} & \textbf{Full CPU SLAM (ORB-SLAM3)} & \textbf{Hybrid KLT SLAM (Ours)} \\
+\textbf{Dimension} & \textbf{OpenVINS} & \textbf{Kimera-VIO} & \textbf{ORB-SLAM3} & \textbf{Hybrid KLT (Ours)} & \textbf{NVIDIA cuVSLAM} \\
 \midrule
-\textbf{Primary Goal} & Real-time dead-reckoning & Fixed-lag state smoothing & Joint trajectory + global Atlas & High-rate tracking + global Atlas \\
+\textbf{Paradigm} & Filter-based VIO & Smoother VIO & Full Keyframe SLAM & Dual-Rate Hybrid SLAM & GPU-Accelerated SLAM \\
 \addlinespace[0.4em]
-\textbf{Tracking Front} & KLT flow ($\SI{6}-\SI{9}{\milli\second}$) & KLT flow ($\SI{6.35}{\milli\second}$) & Multi-scale ORB ($\approx \SI{50}{\milli\second}$) & KLT on non-KFs ($\approx \SI{19}{\milli\second}$) + ORB \\
+\textbf{Primary Goal} & Real-time dead-reckoning & Fixed-lag state smoothing & Joint trajectory + global Atlas & High-rate tracking + global Atlas & High-throughput GPU trajectory + mapping \\
 \addlinespace[0.4em]
-\textbf{Backend Solver} & MSCKF Kalman filter & iSAM2 factor graph & Local g2o Bundle Adjustment & Local g2o Bundle Adjustment \\
+\textbf{Tracking Front} & CPU KLT ($\SI{6}-\SI{9}{\milli\second}$) & CPU KLT ($\SI{6.35}{\milli\second}$) & Multi-scale ORB ($\approx \SI{50}{\milli\second}$) & KLT on non-KFs ($\approx \SI{19}{\milli\second}$) + ORB & CUDA KLT flow ($\SI{1.87}{\milli\second}$, total $\SI{5.9}{\milli\second}$) \\
 \addlinespace[0.4em]
-\textbf{Map Retention} & Marginalized sliding window & Marginalized lag window & Persistent multi-map Atlas & Persistent multi-map Atlas \\
+\textbf{Backend Solver} & MSCKF Kalman filter & iSAM2 factor graph & Local g2o Bundle Adj. & Local g2o Bundle Adj. & Asynchronous GPU BA + PGO \\
 \addlinespace[0.4em]
-\textbf{Loop Closure} & None (open-loop drift) & Extensible module (off by default) & Active DBoW2 + Pose Graph & Active DBoW2 + Pose Graph \\
+\textbf{Map Retention} & Marginalized window & Marginalized lag window & Persistent multi-map Atlas & Persistent multi-map Atlas & Persistent GPU 3D map database \\
 \addlinespace[0.4em]
-\textbf{Drift Behavior} & Cumulative drift & Cumulative drift & Drift reset to $\approx \SI{0}{\meter}$ & Drift reset to $\approx \SI{0}{\meter}$ \\
+\textbf{Loop Closure} & None (open-loop drift) & None in base VIO & Active DBoW2 + Pose Graph & Active DBoW2 + Pose Graph & Active GPU Pose Graph Opt. \\
 \addlinespace[0.4em]
-\textbf{Framerate Cap} & $>100\,\text{FPS}$ & $>150\,\text{FPS}$ & $\approx 18-20\,\text{FPS}$ & $\approx 40-45\,\text{FPS}$ \\
+\textbf{Drift Behavior} & Cumulative drift & Cumulative drift & Drift reset to $\approx \SI{0}{\meter}$ & Drift reset to $\approx \SI{0}{\meter}$ & Drift reset to $\approx \SI{0}{\meter}$ \\
+\addlinespace[0.4em]
+\textbf{Framerate Cap} & $>100\,\text{FPS}$ & $>150\,\text{FPS}$ & $\approx 18-20\,\text{FPS}$ & $\approx 40-45\,\text{FPS}$ & $>170\,\text{FPS}$ \\
 \bottomrule
 \end{tabularx}}
 \end{table}
