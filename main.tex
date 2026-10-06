@@ -105,7 +105,7 @@ Through scoped, microsecond-level software timers (\path{std::chrono::high_resol
     \item \textbf{GPU Acceleration Paradigm:} NVIDIA cuVSLAM leverages CUDA cores to execute stereo rectification and KLT optical flow in $\SI{1.87}{\milli\second}$, delivering end-to-end frame tracking in $\SI{5.92}{\milli\second}$ median ($>170\,\text{FPS}$) alongside asynchronous GPU local bundle adjustment ($\SI{8.28}{\milli\second}$ mean) and achieving high accuracy ($\text{ATE RMSE} = \SI{0.0812}{\meter}$).
 \end{itemize}
 
-This monograph demonstrates both theoretically and empirically that hybridizing high-rate KLT optical flow on non-keyframes with asynchronous descriptor extraction on sparse keyframes eliminates the latency-consistency dilemma, establishing the optimal design pattern for next-generation visual-inertial navigation.
+This monograph demonstrates both theoretically and empirically that hybridizing high-rate KLT optical flow on non-keyframes with asynchronous descriptor extraction on sparse keyframes effectively mitigates the frontend tracking bottleneck, presenting an advantageous and computationally scalable architectural trade-off for CPU-constrained autonomous platforms without sacrificing global metric consistency.
 \end{abstract}
 
 \tableofcontents
@@ -119,7 +119,15 @@ This monograph demonstrates both theoretically and empirically that hybridizing 
 % =============================================================================
 \chapter{Introduction, Background, and Problem Formulation}
 
+Autonomous navigation in GPS-denied environments represents one of the foundational capabilities in modern mobile robotics and cyber-physical systems. Whether guiding an unmanned aerial vehicle (MAV) through industrial facilities, steering an autonomous ground vehicle (UGV) across adverse weather conditions, or tracking head motion in spatial computing headsets, mobile platforms must reliably answer two core questions in real time: \textit{``Where am I located?''} and \textit{``What does my surrounding environment look like?''} 
+
+To achieve this without external satellite positioning or active motion-capture infrastructure, robotic systems rely on onboard passive cameras and micro-electro-mechanical systems (MEMS) inertial measurement units (IMUs). Over the past two decades, this requirement has driven the development of diverse state estimation paradigms, spanning lightweight visual odometry, tightly-coupled visual-inertial filtering, and full simultaneous localization and mapping (SLAM) systems. However, real-world deployment on embedded hardware exposes a persistent engineering tension between high-frequency, deterministic tracking throughput and long-term, globally consistent trajectory mapping.
+
+To establish the necessary theoretical foundation for resolving this tension, this chapter introduces the core state estimation concepts evaluated throughout this monograph. We begin by examining the progression from purely visual to visual-inertial odometry, formalize the operational boundary between local odometry and global SLAM, analyze the physical complementarity of visual and inertial sensors, and define the geometric coordinate frames and Lie group conventions underpinning our mathematical formulation. Finally, we outline the thread concurrency architectures across the evaluated frameworks and formulate the primary research questions addressed by our empirical benchmarking suite.
+
 \section{Background: Visual and Visual-Inertial State Estimation}
+
+Before evaluating complex multi-threaded SLAM and VIO pipelines, it is necessary to examine the underlying estimation building blocks. Vision-based motion estimation can be approached through different levels of sensor integration and spatial persistence: from tracking frame-to-frame pixel displacements using cameras alone, to fusing high-rate inertial measurements for metric scale and dynamic robustness, and ultimately to maintaining global maps with loop closure verification. This section develops this conceptual progression.
 
 \subsection{Visual Odometry (VO) and Visual-Inertial Odometry (VIO)}
 
@@ -375,7 +383,7 @@ The thread concurrency patterns and inter-thread data flow architectures of the 
         \caption{NVIDIA cuVSLAM: Three concurrent GPU CUDA streams executing VO, local BA, and loop PGO.}
         \label{fig:arch_cuvslam}
     \end{subfigure}
-    \caption{Architectural overview and multi-thread concurrency models across the five evaluated visual-inertial paradigms. Each framework is plotted individually with clean serif typography, light backgrounds, and axis-level annotations.}
+    \caption{Architectural overview and multi-thread concurrency models across the five evaluated visual-inertial state estimation paradigms, illustrating sensor ingestion queues, tracking thread dispatching, backend optimization routines, and map memory interactions across CPU and GPU pipelines.}
     \label{fig:ch1_multithread_arch}
 \end{figure}
 
@@ -1104,7 +1112,7 @@ Key takeaways include:
     \item \textbf{Real-Time Filtering \& Smoothing:} MSCKF (OpenVINS) and factor-graph smoothers (Kimera-VIO) deliver deterministic, low-latency tracking ($\SI{6.35}-\SI{8.72}{\milli\second}$, $>100\,\text{FPS}$), making them ideal for high-speed dynamic flight control despite accumulating gradual metric drift over unlooped paths.
     \item \textbf{High-Efficiency Hybrid Tracking Breakthrough:} The implemented Hybrid ORB-SLAM3 KLT system achieves a $\mathbf{36.1\%}$ reduction in frame tracking latency ($\SI{25.15}{\milli\second}$ mean on TUM, $\SI{19.00}{\milli\second}$ median on EuRoC), reduces keyframe insertion and backend optimization load by $\mathbf{40\%}$, and completely eliminates thread lock stalls while matching the precision of full SLAM ($\text{RMSE} = \SI{0.0612}{\meter}$).
     \item \textbf{GPU Acceleration as the New High-Throughput Standard:} NVIDIA cuVSLAM eliminates CPU bottlenecks by executing stereo rectification, optical flow, and local bundle adjustment on CUDA cores, delivering real-time estimation at over $170\,\text{FPS}$ with $\text{ATE RMSE} < \SI{0.09}{\meter}$.
-    \item \textbf{Architectural Evolution:} Hybridizing high-rate KLT optical flow on non-keyframes with asynchronous descriptor extraction on sparse keyframes resolves the latency-consistency dilemma, representing the optimal design pattern for CPU-constrained mobile robotics.
+    \item \textbf{Architectural Trade-Offs:} Hybridizing high-rate KLT optical flow on non-keyframes with asynchronous descriptor extraction on sparse keyframes effectively mitigates the frontend tracking bottleneck, providing an advantageous and computationally scalable design trade-off for CPU-constrained mobile robotics.
     \item \textbf{Outdoor Robustness Gap:} The Suedhoehe outdoor snow benchmark revealed that all tested algorithms failed to maintain reliable long-duration tracking under severe low-texture conditions, highlighting the need for multi-modal sensing (LiDAR, radar) or learned visual features to complement classical geometric approaches.
 \end{enumerate}
 
