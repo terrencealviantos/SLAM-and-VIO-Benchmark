@@ -660,24 +660,24 @@ Table~\ref{tab:detailed_system_matrix} presents an exhaustive architectural comp
 \end{table}
 
 \section{Thread Concurrency and Inter-Thread Dynamics}
-To evaluate real-time determinism and identify computational contention points, we profiled the execution timelines of all five state estimation paradigms at microsecond resolution. Figures~\ref{fig:all_gantt_charts} and \ref{fig:all_gantt_charts_part2} present the comparative Gantt charts depicting thread scheduling, queue latencies, and inter-thread synchronization intervals across the five systems.
+To evaluate real-time determinism and identify computational contention points, we profiled the execution timelines of all five state estimation paradigms at microsecond resolution. Figures~\ref{fig:all_gantt_charts} and \ref{fig:all_gantt_charts_part2} present the comparative multi-thread Gantt charts depicting thread scheduling, queue latencies, and inter-thread synchronization intervals across the five systems.
 
 \begin{figure}[p]
     \centering
     \begin{subfigure}[b]{\textwidth}
         \centering
         \includegraphics[width=\textwidth]{1_openvins_gantt_chart.png}
-        \caption{OpenVINS: Detailed sub-module execution timeline on a single primary MSCKF thread.}
+        \caption{OpenVINS: Detailed sub-module execution timeline Gantt chart on a single primary MSCKF thread.}
         \label{fig:gantt_openvins}
     \end{subfigure}
     \vspace{0.8em}
     \begin{subfigure}[b]{\textwidth}
         \centering
         \includegraphics[width=\textwidth]{2_kimera_gantt_chart.png}
-        \caption{Kimera-VIO: Frontend tracking and asynchronous iSAM2 optimization timeline.}
+        \caption{Kimera-VIO: Frontend tracking and asynchronous iSAM2 optimization timeline Gantt chart.}
         \label{fig:gantt_kimera}
     \end{subfigure}
-    \caption{Detailed execution timeline and sub-module profiling for filtering and fixed-lag smoothing paradigms (OpenVINS and Kimera-VIO).}
+    \caption{Multi-thread execution timeline Gantt charts and sub-module profiling for filtering and fixed-lag smoothing paradigms (OpenVINS and Kimera-VIO).}
     \label{fig:all_gantt_charts}
 \end{figure}
 
@@ -686,29 +686,29 @@ To evaluate real-time determinism and identify computational contention points, 
     \begin{subfigure}[b]{\textwidth}
         \centering
         \includegraphics[width=\textwidth]{3_orbslam3_gantt_chart.png}
-        \caption{Baseline ORB-SLAM3: Tracking thread bottlenecks and keyframe local mapping contention.}
+        \caption{Baseline ORB-SLAM3: Tracking thread bottlenecks and keyframe local mapping contention Gantt chart.}
         \label{fig:gantt_orbslam3}
     \end{subfigure}
     \vspace{0.8em}
     \begin{subfigure}[b]{\textwidth}
         \centering
         \includegraphics[width=\textwidth]{5_orbslam3_klt_gantt_chart.png}
-        \caption{Hybrid KLT ORB-SLAM3: Fast optical flow non-keyframe propagation vs. baseline.}
+        \caption{Hybrid KLT ORB-SLAM3: Fast optical flow non-keyframe propagation Gantt chart vs. baseline.}
         \label{fig:gantt_orbslam3_klt}
     \end{subfigure}
     \vspace{0.8em}
     \begin{subfigure}[b]{\textwidth}
         \centering
         \includegraphics[width=\textwidth]{4_cuvslam_gantt_chart.png}
-        \caption{NVIDIA cuVSLAM: Multi-stream GPU execution timeline for frontend and local BA.}
+        \caption{NVIDIA cuVSLAM: Multi-stream GPU execution timeline Gantt chart for frontend and local BA.}
         \label{fig:gantt_cuvslam}
     \end{subfigure}
-    \caption{Detailed execution timelines comparing full keyframe SLAM (baseline vs. hybrid KLT) and GPU-accelerated cuVSLAM.}
+    \caption{Multi-thread execution timeline Gantt charts comparing full keyframe SLAM (baseline vs. hybrid KLT) and GPU-accelerated cuVSLAM.}
     \label{fig:all_gantt_charts_part2}
 \end{figure}
 
 \subsection{OpenVINS Thread Dynamics}
-As shown in Figure~\ref{fig:gantt_openvins}, OpenVINS processes each stereo frame strictly sequentially within a single primary thread:
+As shown in the execution timeline Gantt chart of Figure~\ref{fig:gantt_openvins}, OpenVINS processes each stereo frame strictly sequentially within a single primary thread:
 \begin{enumerate}
     \item \textbf{IMU Propagation ($\SI{0.46}{\milli\second}$):} Propagates covariance $\mat{P}$ and state $\hat{\vect{x}}$ up to the image capture timestamp.
     \item \textbf{KLT Feature Tracking ($\SI{8.72}{\milli\second}$):} Tracks corners across pyramid levels using Lucas-Kanade optical flow.
@@ -719,21 +719,21 @@ As shown in Figure~\ref{fig:gantt_openvins}, OpenVINS processes each stereo fram
 Because there are zero inter-thread locks or shared memory mutexes, OpenVINS exhibits flawless temporal determinism with total frame duration averaging $\SI{20.62}{\milli\second}$.
 
 \subsection{Kimera-VIO Thread Dynamics}
-As visualized in Figure~\ref{fig:gantt_kimera}, Kimera-VIO decouples high-rate tracking from factor graph optimization:
+As visualized in the execution timeline Gantt chart of Figure~\ref{fig:gantt_kimera}, Kimera-VIO decouples high-rate tracking from factor graph optimization:
 \begin{itemize}
     \item \textbf{Frontend Thread ($\SI{8.99}{\milli\second}$):} Executes KLT tracking and 5-point RANSAC at camera rate ($\SI{20}-\SI{30}{\hertz}$), pushing keyframe factor packets into a lock-free queue.
     \item \textbf{Backend Thread ($\SI{18.50}{\milli\second}$):} Wakes up asynchronously upon keyframe receipt to execute iSAM2 optimization. Because the frontend never blocks on the backend, state estimation output is generated with zero latency spikes.
 \end{itemize}
 
 \subsection{ORB-SLAM3 Baseline Thread Dynamics \& CPU Contention}
-Figure~\ref{fig:gantt_orbslam3} highlights the severe thread synchronization bottlenecks present in original ORB-SLAM3:
+The multi-thread Gantt chart in Figure~\ref{fig:gantt_orbslam3} highlights the severe thread synchronization bottlenecks present in original ORB-SLAM3:
 \begin{itemize}
     \item \textbf{Tracking Thread Bottleneck ($\SI{54.66}{\milli\second}$):} Extracting ORB features across 8 image pyramid levels takes $\approx \SI{46.2}{\milli\second}$ on CPU per frame.
     \item \textbf{Local Mapping BA Bottleneck ($\SI{65.0}{\milli\second}$):} When rapid motion causes frequent keyframe creation, the Local Mapping thread falls behind. The tracking thread must acquire \texttt{mutexMap} locks before projecting map points, causing severe tracking stalls (max peak latency reaching $\SI{283.30}{\milli\second}$).
 \end{itemize}
 
 \subsection{ORB-SLAM3 Hybrid KLT Concurrency and Keyframe Reduction Dynamics}
-As demonstrated in Figure~\ref{fig:gantt_orbslam3_klt}, the integrated \textbf{Hybrid KLT Tracking} architecture resolves the CPU contention and latency bottlenecks of ORB-SLAM3 through three foundational optimizations:
+As demonstrated in the multi-thread Gantt chart of Figure~\ref{fig:gantt_orbslam3_klt}, the integrated \textbf{Hybrid KLT Tracking} architecture resolves the CPU contention and latency bottlenecks of ORB-SLAM3 through three foundational optimizations:
 \begin{enumerate}
     \item \textbf{Selective ORB Descriptor Extraction:} On non-keyframes ($\approx 90\%$ of incoming video stream), ORB extraction is completely disabled via \texttt{bExtractORB = false}. Instead, sparse Pyramidal Lucas-Kanade optical flow (\texttt{KLTTracker}) tracks landmarks from the previous frame.
     \item \textbf{Zero-Copy Keypoint \& MapPoint Binding:} Tracked 2D feature coordinates inherit keypoint descriptors and \texttt{MapPoint} pointers directly from the previous frame via \texttt{InitFromKLT}, followed by sub-millisecond grid binning and distortion correction.
@@ -742,7 +742,7 @@ As demonstrated in Figure~\ref{fig:gantt_orbslam3_klt}, the integrated \textbf{H
 \end{enumerate}
 
 \subsection{NVIDIA cuVSLAM GPU Pipeline Dynamics}
-Figure~\ref{fig:gantt_cuvslam} illustrates the high-throughput architecture of cuVSLAM:
+The multi-stream Gantt chart in Figure~\ref{fig:gantt_cuvslam} illustrates the high-throughput architecture of cuVSLAM:
 \begin{itemize}
     \item Stereo rectification executes on CUDA texture-memory kernels in $\SI{0.95}{\milli\second}$ (mean), followed by GPU Pyramidal KLT optical flow in $\SI{1.87}{\milli\second}$ (mean), and GPU pose optimization in $\SI{2.42}{\milli\second}$ (mean).
     \item Complete end-to-end stereo frame tracking (rectification + KLT + IMU + pose) takes $\SI{5.92}{\milli\second}$ median ($>170\,\text{FPS}$), with peak latency $\SI{12.40}{\milli\second}$ only when loop detection and pose graph optimization are triggered.
@@ -1011,6 +1011,23 @@ The integrated Hybrid ORB-SLAM3 KLT pipeline was benchmarked across two standard
     \item \textbf{Keyframe Reduction:} Keyframe insertions dropped from $301$ to $\mathbf{181}$ keyframes ($40\%$ reduction).
     \item \textbf{Backend Optimization Savings:} Bypassing redundant keyframes decreased local bundle adjustment optimization workload and map point culling overhead by $\mathbf{40\%}$, completely eliminating tracking thread mutex lock stalls.
 \end{itemize}
+
+\subsection{Empirical Thread Scheduling and Multi-Frame Gantt Chart Profiling}
+\label{sec:empirical_gantt_profiling}
+To empirically validate the thread contention relief and latency reduction reported in Table~\ref{tab:ch6_comparative_timing}, Figure~\ref{fig:ch6_multiframe_gantt} presents a multi-frame execution timeline Gantt chart comparing the tracking and mapping concurrency of Baseline ORB-SLAM3 versus Hybrid KLT ORB-SLAM3 across consecutive frames.
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.95\textwidth]{multi_frame_gantt.png}
+    \caption{Multi-frame execution timeline Gantt chart comparing thread scheduling and processing intervals between Baseline ORB-SLAM3 and Hybrid KLT ORB-SLAM3. The Gantt chart illustrates how optical flow on non-keyframes decouples tracking from heavy descriptor computation and eliminates mutex lock contention during local mapping keyframe optimization.}
+    \label{fig:ch6_multiframe_gantt}
+\end{figure}
+
+The empirical Gantt chart confirms two decisive operational improvements:
+\begin{enumerate}
+    \item \textbf{Tracking Period Regularity:} In baseline ORB-SLAM3, heavy ORB extraction on every frame introduces periodic timing jitter and thread blocking whenever the Local Mapping thread acquires the map mutex. In the Hybrid KLT Gantt chart, non-keyframe optical flow runs within a strictly bounded $\approx \SI{19}{\milli\second}$ window, maintaining an even tracking cadence.
+    \item \textbf{Mutex Lock Contention Elimination:} Because keyframe creation is reduced by $40\%$ (from 301 to 181 keyframes on MH\_01), the Local Mapping optimization queue never saturates, completely eliminating the $\SI{280}{\milli\second}$ tail stalls observed in baseline ORB-SLAM3.
+\end{enumerate}
 
 \section{Real-World Robustness on Outdoor Snow Dataset}
 The Suedhoehe GPS Schnee 02 outdoor winter sequence ($\SI{141.5}{\second}$, RTK-GPS ground truth, 4244 reference poses) exposed severe algorithmic failure modes under low-texture snow conditions. Table~\ref{tab:ch6_suedhoehe_status} summarizes the operational status of each algorithm.
