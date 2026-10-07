@@ -125,54 +125,40 @@ To achieve this without external satellite positioning or active motion-capture 
 
 To establish the necessary theoretical foundation for resolving this tension, this chapter introduces the core state estimation concepts evaluated throughout this monograph. We begin by examining the progression from purely visual to visual-inertial odometry, formalize the operational boundary between local odometry and global SLAM, analyze the physical complementarity of visual and inertial sensors, and define the geometric coordinate frames and Lie group conventions underpinning our mathematical formulation. Finally, we outline the thread concurrency architectures across the evaluated frameworks and formulate the primary research questions addressed by our empirical benchmarking suite.
 
-\section{Background: Visual and Visual-Inertial State Estimation}
+\section{Motivation and Theoretical Context: State Estimation in GPS-Denied Environments}
+Real-time state estimation underpins the operational autonomy of mobile robots, enabling high-rate dynamic control and spatial scene understanding. This section formalizes why operating without satellite navigation necessitates a multi-tiered estimation architecture, traces the progression from pure vision to visual-inertial odometry, and establishes how VIO serves as the fast inner tracking loop for full SLAM.
 
-Before evaluating complex multi-threaded SLAM and VIO pipelines, it is necessary to examine the underlying estimation building blocks. Vision-based motion estimation can be approached through different levels of sensor integration and spatial persistence: from tracking frame-to-frame pixel displacements using cameras alone, to fusing high-rate inertial measurements for metric scale and dynamic robustness, and ultimately to maintaining global maps with loop closure verification. This section develops this conceptual progression.
+\subsection{The Challenge of Autonomous Navigation Without Global Positioning}
+Autonomous mobile robotics operating in GPS-denied or degraded environments—such as unmanned aerial vehicles (MAVs) inspecting subterranean industrial tunnels, autonomous ground vehicles (UGVs) exploring degraded off-road environments, or spatial computing headsets operating indoors—cannot rely on external satellite constellations (GNSS/GPS) or artificial motion-capture setups. In these operating regimes, satellite signals are physically blocked by structural occlusions, corrupted by severe multi-path reflections, or intentionally jammed. 
 
-\subsection{Visual Odometry (VO) and Visual-Inertial Odometry (VIO)}
+Consequently, the mobile platform must achieve complete self-reliance, estimating its 6-DoF kinematic motion ($x, y, z$ position and roll, pitch, yaw orientation) and reconstructing surrounding spatial structures using only onboard, passive, and self-contained sensors. Meeting this requirement has led to the progressive development of three foundational state estimation tiers: Visual Odometry (VO), Visual-Inertial Odometry (VIO), and Simultaneous Localization and Mapping (SLAM). Understanding the progression across these tiers—and why each was conceived—is essential for contextualizing the multi-threaded architectural trade-offs evaluated throughout this monograph.
 
-\subsubsection{Visual Odometry (VO)}
-Visual odometry is the process of estimating the 6-DoF position and orientation of a robotic platform or computer vision system by incrementally analyzing sequential camera images captured from its surrounding environment. Originating in planetary exploration—such as on the NASA Mars Exploration Rovers Spirit and Opportunity—VO has become a cornerstone of modern robotics.
+\subsection{The Estimation Progression: From Pure Vision to Inertial Fusion}
+Vision-based state estimation begins with cameras and systematically incorporates high-rate inertial sensing to resolve physical unobservabilities:
 
-VO frameworks typically operate on diverse camera configurations:
+\subsubsection{Visual Odometry (VO): Local Motion from Pixel Displacement}
+Visual Odometry (VO) determines the incremental relative motion of a platform by tracking the displacement of 2D visual features or photometric intensity gradients across successive camera frames. While operational on monocular, stereo, or RGB-D configurations, vision-only motion estimation faces fundamental physical limitations:
 \begin{itemize}
-    \item \textbf{Monocular Cameras:} Utilize a single camera stream. While minimal in weight and power, monocular VO cannot recover metric scale without external priors, and scale tends to drift monotonically over time.
-    \item \textbf{Stereo Cameras:} Utilize two synchronized, rigidly baseline-calibrated cameras ($b > 0$), enabling direct metric depth triangulation from horizontal disparity.
-    \item \textbf{RGB-D Cameras:} Couple an active infrared projector with an image sensor to obtain dense per-pixel depth. While effective indoors, RGB-D systems fail in outdoor environments due to ambient infrared solar washout.
+    \item \textbf{Scale Ambiguity in Monocular Setups:} A single camera cannot distinguish between a small translation observed up close and a large translation observed far away without external priors, causing metric scale to drift monotonically over time.
+    \item \textbf{Dynamic Fragility and Frame-Rate Limits:} Standard cameras operate at relatively low sampling rates ($20-\SI{30}{\hertz}$) with exposure times that induce severe motion blur during rapid rotations, causing catastrophic feature loss.
+    \item \textbf{Open-Loop Drift Accumulation:} Because VO computes poses incrementally without global spatial anchors, errors compound with distance traveled, leading to unbounded dead-reckoning drift.
 \end{itemize}
 
-While VO provides high-rate, smooth local relative motion estimates, it is fundamentally prone to dead-reckoning drift accumulation due to the absence of global spatial constraints or absolute reference measurements:
+\subsubsection{Visual-Inertial Odometry (VIO): High-Rate Dynamic Robustness and Scale Observability}
+To overcome the vulnerabilities of pure vision, Visual-Inertial Odometry (VIO) tightly couples cameras with a 6-axis MEMS Inertial Measurement Unit (IMU), comprising a 3-axis accelerometer and a 3-axis gyroscope operating at high rates ($200-\SI{1000}{\hertz}$). Fusing visual and inertial data creates an exceptionally complementary physical pairing:
 \begin{itemize}
-    \item \textbf{Absolute Reference:} Measurements that anchor the robot pose to the true global coordinate frame (e.g., gravity alignment or RTK-GPS).
-    \item \textbf{Global Constraints:} Mechanisms that detect and correct cumulative drift over time, such as loop closure detection and global pose graph optimization in full SLAM systems.
+    \item \textbf{Metric Scale Observability:} Coupling gravitational acceleration $\vect{g}_W$ with visual bearing tracks renders absolute metric scale and roll/pitch angles directly observable, even in monocular camera configurations.
+    \item \textbf{Dynamic Motion Bridging:} During aggressive rotational maneuvers or temporary visual occlusion, high-frequency IMU integration propagates state estimates without interruption.
+    \item \textbf{Sensor Mutual Error Suppression:} High-rate visual reprojection constraints continuously observe and cancel out the IMU's slowly-drifting accelerometer and gyroscope biases ($\vect{b}_a, \vect{b}_g$).
 \end{itemize}
+Despite these decisive advantages, pure VIO maintains only a finite sliding window of recent camera poses (typically $N \approx 10-20$). Once landmarks leave the camera field of view, they are marginalized out and permanently discarded. As a result, pure VIO cannot correct past trajectory drift when revisiting previously traversed terrain.
 
-\subsubsection{Visual-Inertial Odometry (VIO)}
-Visual-Inertial Odometry (VIO) extends pure VO by fusing visual measurements with high-rate inertial data from a 6-axis MEMS Inertial Measurement Unit (IMU), consisting of a 3-axis accelerometer and a 3-axis gyroscope.
-
-The combination of visual and inertial streams provides decisive operational advantages:
-\begin{itemize}
-    \item \textbf{Robustness under Dynamic Motion:} High-frequency IMU integration maintains state propagation during rapid aggressive maneuvers and intermittent visual motion blur.
-    \item \textbf{Scale Observability:} Coupling gravitational acceleration $\vect{g}_W$ with visual bearing tracks renders absolute metric scale and roll/pitch angles directly observable, even on monocular camera setups.
-    \item \textbf{Inertial Drift Suppression:} Continuous visual reprojection constraints bound accelerometer and gyroscope bias wander.
-\end{itemize}
-
-However, similar to pure VO, pure VIO estimates only a local trajectory within a finite temporal window and does not maintain a persistent global map to eliminate long-term drift.
-
-\subsection{Visual-Inertial Odometry (VIO) vs. Full SLAM: Fundamental Paradigms}
-
-The fundamental distinction between Visual-Inertial Odometry (VIO) and Simultaneous Localization and Mapping (SLAM) lies in their respective mathematical estimation objectives, state representations, and long-term consistency mechanisms:
-\begin{itemize}
-    \item \textbf{Visual-Inertial Odometry (VIO):} Estimates the incremental ego-motion and kinematic trajectory of the sensor platform over time using tightly-coupled camera and IMU measurements. VIO maintains only a local, finite temporal horizon (a sliding window of $N \approx 10-20$ recent camera poses or active visual landmarks). Once spatial landmarks leave the camera field of view and are marginalized out of the active window, they are permanently discarded. VIO maintains no persistent representation of the environment; its mathematical objective is pure, low-latency dead-reckoning state propagation, and its trajectory drift accumulates monotonically over time.
-    \item \textbf{Simultaneous Localization and Mapping (SLAM):} Solves a dual, coupled estimation problem: estimating the device's 6-DoF pose trajectory $\mathcal{X}_{0:t}$ while simultaneously building, maintaining, and incrementally expanding an explicit, persistent, spatially registered map $\mathcal{M}$ of the external environment. This map persists throughout the entire operational lifetime of the mission, serving as a cumulative spatial memory that grounds future tracking and enables global drift elimination via loop closure detection and global pose graph optimization.
-\end{itemize}
-
-\subsubsection{Hierarchical System Architecture: VIO as the High-Rate Inner Loop of Full SLAM}
-In modern robotic state estimation, VIO and SLAM should not be viewed as mutually exclusive or adversarial alternatives. Rather, they represent complementary tiers within a hierarchical, multi-rate estimation continuum:
-\begin{itemize}
-    \item \textbf{High-Rate Inner Loop (Tracking \& Dynamic Stabilization):} The visual-inertial odometry frontend runs synchronously at frame rates ($30-\SI{200}{\hertz}$), fusing IMU preintegration with inter-frame optical flow or sparse feature tracking to deliver deterministic, low-latency state feedback ($\Delta t < \SI{10}{\milli\second}$). This high-bandwidth inner loop is indispensable for platform stabilization, flight control (e.g., MAV attitude control loops), and local obstacle avoidance.
-    \item \textbf{Global Outer Loop (Mapping, Loop Closure, \& Long-Term Consistency):} The SLAM backend operates asynchronously at lower frequencies ($1-\SI{5}{\hertz}$) or on opportunistic event triggers. It ingests keyframes spawned by the inner loop, manages co-visibility graphs, detects revisited locations, and optimizes global trajectory consistency, ensuring that local dead-reckoning drift does not compromise long-term navigation.
-\end{itemize}
+\subsection{VIO as the High-Rate Inner Loop of Full SLAM}
+In modern robotic architectures, Visual-Inertial Odometry and Simultaneous Localization and Mapping are not mutually exclusive or competing alternatives. Instead, \textbf{VIO represents the high-frequency, low-latency inner tracking loop of a full SLAM system}:
+\begin{enumerate}
+    \item \textbf{High-Rate Inner Loop (Tracking \& Real-Time Control):} The VIO frontend operates synchronously at frame rate ($30-\SI{100}{\hertz}$), fusing IMU preintegration with inter-frame optical flow or sparse feature tracking to deliver deterministic, low-latency state feedback ($\Delta t < \SI{15}{\milli\second}$). This deterministic feedback is indispensable for high-bandwidth flight control and dynamic stabilization, where algorithmic stalls would lead to catastrophic crashes.
+    \item \textbf{Global Outer Loop (Mapping, Loop Closure, \& Long-Term Consistency):} Full SLAM augments this inner tracking loop with a persistent spatial memory (a global 3D landmark map and co-visibility graph) and an asynchronous place recognition engine (e.g., DBoW bag-of-words). When the robot revisits a known area, the outer loop detects the topological loop, solves a $\Simthree$ alignment problem, and executes global Pose Graph Optimization (PGO) or Bundle Adjustment (BA), resetting accumulated odometric drift to near zero.
+\end{enumerate}
 
 Table~\ref{tab:vio_vs_slam_side_by_side} formalizes the side-by-side functional and architectural trade-offs between pure VIO and full SLAM across key operational dimensions.
 
@@ -207,8 +193,8 @@ Table~\ref{tab:vio_vs_slam_side_by_side} formalizes the side-by-side functional 
 \end{tabularx}}
 \end{table}
 
-\subsubsection{Architectural Continuum Across the Benchmarked Frameworks}
-In this monograph, the five benchmarked state estimation systems represent distinct instantiations across this VIO-to-SLAM continuum:
+\subsection{The Evaluated Paradigms Across the VIO-to-SLAM Continuum}
+To evaluate how different design philosophies navigate the tension between tracking latency and global consistency, this monograph investigates five representative frameworks spanning the entire architectural spectrum:
 \begin{enumerate}
     \item \textbf{OpenVINS (Filter-Based Pure VIO):} Executes Multi-State Constraint Kalman Filter (MSCKF) sliding-window updates. Poses and feature tracks are marginalized analytically, maintaining a strictly bounded memory footprint and deterministic compute budget without storing a map.
     \item \textbf{Kimera-VIO (Optimization-Based Pure VIO Core):} Formulates state estimation as factor graph optimization using GTSAM iSAM2 over a fixed-lag keyframe window. While performing iterative non-linear optimization, its core tracking and smoothing pipeline operates as an open-loop odometry engine.
@@ -248,36 +234,12 @@ Table~\ref{tab:vio_vs_slam_comparison} outlines the architectural and runtime tr
 \end{tabularx}}
 \end{table}
 
-\subsubsection{Motivation for Joint Benchmarking in this Monograph}
-Benchmarking pure VIO engines alongside full SLAM architectures within the same experimental framework is essential for two reasons:
-\begin{enumerate}
-    \item \textbf{Quantifying the Computational Tax of Global Consistency:} By comparing OpenVINS and Kimera-VIO directly against ORB-SLAM3 on identical sensor streams, we isolate the exact computational overhead (CPU cycle consumption, thread contention, and frame drops) imposed by maintaining persistent map points, co-visibility graphs, and loop closure engines.
-    \item \textbf{Evaluating the Hybrid Paradigm:} The benchmark provides empirical proof that decoupling the inner tracking loop (via KLT optical flow) from the outer mapping loop (via keyframe descriptors) allows autonomous systems to achieve near-VIO tracking throughput without sacrificing the drift-free spatial guarantees of full SLAM.
-\end{enumerate}
-
-\subsection{Feature Representations in Visual Tracking}
-Visual frontends in state estimation can be categorized into three dominant tracking paradigms:
-
-\subsubsection{Descriptor-Based Sparse Features}
-Descriptor-based systems detect salient interest points (e.g., ORB~\cite{rublee2011orb}, SIFT, SURF) and compute invariant binary or floating-point feature descriptors:
+\subsection{The Frontend Tracking Bottleneck: Descriptors vs. Optical Flow}
+The central bottleneck determining the real-time execution limits of the evaluated architectures resides inside the visual frontend:
 \begin{itemize}
-    \item \textbf{Advantages:} High invariance to viewpoint changes, suitable for wide-baseline matching, relocalization, and loop closing.
-    \item \textbf{Disadvantages:} Heavy computational overhead on CPU due to multi-scale extraction and Hamming distance matching ($\approx \SI{46}{\milli\second}$ per frame).
-\end{itemize}
-
-\subsubsection{Patch-Based Sparse Optical Flow (KLT Tracker)}
-The Kanade--Lucas--Tomasi (KLT) tracker~\cite{lucaskanade1981,bouguet2001klt} tracks pixel patches across temporal frames by minimizing the sum of squared photometric errors under the brightness constancy assumption:
-\begin{itemize}
-    \item \textbf{Advantages:} Extremely low computational footprint ($\approx \SI{6}-\SI{8}{\milli\second}$ on CPU, $\approx \SI{1.87}{\milli\second}$ on GPU~\cite{bouguet2001klt}), enabling frame rates $>100\,\text{FPS}$.
-    \item \textbf{Disadvantages:} Sensitive to illumination transients, large inter-frame displacement, and lacks global place descriptors for loop closure.
-\end{itemize}
-
-\subsubsection{Hybrid KLT--Descriptor Dual-Rate Frontend}
-Hybrid tracking decouples high-frequency temporal tracking from place recognition:
-\begin{itemize}
-    \item \textbf{High-Speed Non-Keyframe Lane:} Incoming non-keyframes are tracked using sparse KLT optical flow against the previous frame, projecting 3D map points and optimizing pose with g2o motion-only BA in $< \SI{20}{\milli\second}$.
-    \item \textbf{Selective Keyframe Feature Extraction:} Full ORB feature extraction and descriptor computation are invoked only when geometric covisibility triggers a keyframe decision ($2-\SI{5}{\hertz}$).
-    \item \textbf{Advantages:} Combines the $>40\,\text{FPS}$ real-time throughput of optical flow with the drift-eliminating loop closure and relocalization accuracy of full descriptor-based SLAM.
+    \item \textbf{Descriptor-Based Sparse Features (ORB):} Extracting multi-scale FAST corners and computing 256-bit steered BRIEF binary descriptors provides exceptional invariance to large viewpoint rotations, enabling robust wide-baseline matching, relocalization, and loop closing. However, extracting ORB descriptors on CPU consumes $\approx \SI{46.2}{\milli\second}$ per frame, consuming $>85\%$ of the tracking thread's total processing budget and capping tracking frame rates at $\approx 18\,\text{FPS}$.
+    \item \textbf{Sparse Optical Flow (KLT Tracker):} Pyramidal Kanade--Lucas--Tomasi (KLT) tracking tracks pixel patches across temporal frames by minimizing photometric intensity errors under brightness constancy. KLT requires only $\SI{6.35}-\SI{8.72}{\milli\second}$ on CPU and $\SI{1.87}{\milli\second}$ on GPU, allowing tracking rates $>100\,\text{FPS}$, but lacks appearance descriptors required for global place recognition.
+    \item \textbf{The Dual-Rate Hybrid Resolution:} By executing fast KLT optical flow on high-rate non-keyframes while restricting heavy descriptor extraction strictly to sparse keyframes ($2-\SI{5}{\hertz}$), the hybrid paradigm eliminates the frontend bottleneck while preserving full SLAM loop-closing fidelity.
 \end{itemize}
 
 \section{Physics and Complementarity of Visual-Inertial Fusion}
@@ -421,6 +383,7 @@ The design space of visual-inertial navigation has been explored extensively acr
 % CHAPTER 2: MATHEMATICAL FOUNDATIONS
 % =============================================================================
 \chapter{Theoretical Foundations and Geometric Kinematics on Manifolds}
+Rigorous state estimation for agile robotic platforms requires mathematically consistent kinematic representations that respect the geometric topology of 3D rotations and translations. This chapter derives the manifold foundations used throughout our benchmark, covering matrix Lie groups, continuous-time IMU kinematics, noise propagation models, on-manifold preintegration theory, and projective camera geometry.
 
 \section{Matrix Lie Groups and Lie Algebras}
 Three-dimensional rotations do not form a vector space under standard matrix addition, as adding two orthogonal rotation matrices does not yield an orthogonal matrix ($\mat{R}_1 + \mat{R}_2 \notin \SOthree$). Formulating unconstrained optimization or standard Kalman filtering in $\mathbb{R}^{3 \times 3}$ leads to covariance singularity and loss of orthogonality. State estimation on manifolds formulates states directly on Lie Groups and parameterizes perturbation errors on their corresponding tangent spaces (Lie Algebras)~\cite{sola2017micro,barfoot2017state}.
@@ -501,6 +464,8 @@ When the bias estimates change by $\delta\vect{b} = \begin{bmatrix} \delta\vect{
 where $\mat{J}_{\Delta R, g} = \frac{\partial \Delta\mat{R}_{ij}}{\partial \vect{b}_g}$, $\mat{J}_{\Delta v, g} = \frac{\partial \Delta\vect{v}_{ij}}{\partial \vect{b}_g}$, $\mat{J}_{\Delta v, a} = \frac{\partial \Delta\vect{v}_{ij}}{\partial \vect{b}_a}$, $\mat{J}_{\Delta p, g} = \frac{\partial \Delta\vect{p}_{ij}}{\partial \vect{b}_g}$, $\mat{J}_{\Delta p, a} = \frac{\partial \Delta\vect{p}_{ij}}{\partial \vect{b}_a}$ are preintegrated measurement Jacobians propagated alongside the covariance matrix $\mat{\Sigma}_{ij}$.
 
 \section{Camera Models, Epipolar Geometry, and Triangulation}
+Accurate visual state estimation relies on geometric projection models that map physical 3D scene landmarks to 2D image coordinates, accounting for lens optics and geometric sensor baselines. This section formalizes the projective pinhole model and horizontal stereo depth triangulation.
+
 \subsection{Pinhole Camera and Distortion Models}
 Following projective and multiple view geometry principles~\cite{hartley2003multiple}, let $\vect{p}_C = \begin{bmatrix} X_C & Y_C & Z_C \end{bmatrix}^\top$ be a 3D point in camera coordinates. Its normalized image plane coordinate is $\vect{x}_n = \begin{bmatrix} x_n & y_n \end{bmatrix}^\top = \begin{bmatrix} X_C/Z_C & Y_C/Z_C \end{bmatrix}^\top$.
 
@@ -524,6 +489,7 @@ In a rectified horizontal stereo rig with baseline $b$ and focal length $f_x$, t
 % CHAPTER 3: ESTIMATION PARADIGMS
 % =============================================================================
 \chapter{State Estimation Paradigms in VIO and SLAM}
+The five benchmarked state estimation systems represent diverse mathematical formulations, spanning recursive filtering, factor graph smoothing, multi-thread keyframe SLAM, and hardware-accelerated stream computing. This chapter details the algorithmic foundations of each system: the Multi-State Constraint Kalman Filter (OpenVINS), incremental factor graph smoothing (Kimera-VIO), Atlas multi-map keyframe SLAM (ORB-SLAM3), hybrid dual-rate tracking (Hybrid KLT), and GPU stream parallelization (cuVSLAM).
 
 \section{The Multi-State Constraint Kalman Filter (MSCKF)}
 Traditional EKF-SLAM maintains both the robot pose and all 3D landmark positions in the state covariance matrix $\mat{P}_k$. As the number of landmarks $M$ grows into thousands, the computational cost of the Kalman update scales quadratically $\mathcal{O}(M^2)$ to cubically $\mathcal{O}(M^3)$, making real-time execution impossible.
@@ -623,6 +589,7 @@ NVIDIA cuVSLAM offloads all compute-heavy image processing and non-linear least 
 % CHAPTER 4: ARCHITECTURAL COMPARISON
 % =============================================================================
 \chapter{In-Depth Architectural Analysis of Evaluated Systems}
+Beyond mathematical formulations, the runtime determinism and computational scalability of state estimation systems are shaped by their software architectures, multi-thread scheduling models, and memory access patterns. This chapter analyzes the architectural dimensions of all five systems through an exhaustive comparative matrix and examines thread synchronization dynamics.
 
 \section{Comprehensive System Profiles}
 Table~\ref{tab:detailed_system_matrix} presents an exhaustive architectural comparison of the five evaluated visual-inertial state estimation systems.
@@ -753,6 +720,7 @@ The multi-stream Gantt chart in Figure~\ref{fig:gantt_cuvslam} illustrates the h
 % CHAPTER 5: EXPERIMENTAL SETUP
 % =============================================================================
 \chapter{Experimental Methodology and Benchmark Setup}
+To ensure fair and repeatable performance comparisons, this chapter outlines the benchmarking methodology, hardware configuration, containerized software environment, test datasets, and formal mathematical evaluation protocols.
 
 \section{Hardware Evaluation Platform and Containerized Architecture}
 To guarantee mathematical reproducibility, eliminate cross-framework dependency conflicts, and isolate algorithms from OS scheduling noise or background thrashing, all benchmarks were executed within a containerized benchmarking harness:
@@ -764,6 +732,7 @@ To guarantee mathematical reproducibility, eliminate cross-framework dependency 
 \end{itemize}
 
 \section{Dataset Characteristics and Environmental Challenges}
+We evaluate the five visual-inertial paradigms across two complementary experimental scenarios designed to test both ideal laboratory conditions and severe real-world visual degradation:
 
 \subsection{EuRoC MAV Dataset (Indoor Micro-Aerial Vehicle)}
 The EuRoC MAV dataset~\cite{euroc} is the primary international standard for evaluating visual-inertial state estimation. Sensor configuration consists of:
@@ -815,6 +784,7 @@ Trajectory evaluation is performed using \textbf{evo} following standard geometr
 % CHAPTER 6: EMPIRICAL RESULTS AND COMPARATIVE FINDINGS
 % =============================================================================
 \chapter{Empirical Results and In-Depth Comparative Findings}
+This chapter presents the core empirical findings of our benchmarking campaign, evaluating trajectory tracking accuracy, sub-module execution latencies, the ORB descriptor computational bottleneck, the performance impact of hybrid KLT tracking, and real-world robustness under low-texture snow conditions.
 
 \section{Trajectory Accuracy and Estimation Error Analysis}
 Table~\ref{tab:evo_accuracy_full} presents the complete statistical Absolute Pose Error (APE) metrics across all five systems on EuRoC MH\_01\_easy.
@@ -1067,6 +1037,7 @@ These results highlight a critical finding: \textbf{no evaluated algorithm achie
 % CHAPTER 7: DESIGN GUIDELINES AND FUTURE WORK
 % =============================================================================
 \chapter{Design Guidelines, Practical Trade-Offs, and Future Directions}
+Translating empirical benchmark insights into practical robotic systems requires balancing algorithmic precision against embedded hardware constraints. This chapter synthesizes our architectural and experimental findings into a concrete system selection guide and analyzes open technical limitations.
 
 \section{Robotics System Selection Matrix}
 Table~\ref{tab:ch7_selection_guide} presents an actionable decision matrix for selecting state estimation systems across target robotics applications.
