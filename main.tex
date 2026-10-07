@@ -345,47 +345,54 @@ $\mat{P}_t, \mat{\Sigma}_t$ & State error covariance matrix and measurement nois
 \end{tabularx}
 \end{table}
 
-The thread concurrency patterns and inter-thread data flow architectures of the five evaluated visual-inertial paradigms are conceptually illustrated in Figure~\ref{fig:ch1_multithread_arch}. Each framework is displayed individually to maintain high legibility and consistent font sizing matching the report typography.
+The thread concurrency patterns and inter-thread data flow architectures of the five evaluated visual-inertial paradigms are conceptually illustrated in Figures~\ref{fig:ch1_vio_arch} and~\ref{fig:ch1_slam_arch}. Figure~\ref{fig:ch1_vio_arch} depicts the lightweight, bounded concurrency models of pure VIO architectures (OpenVINS and Kimera-VIO), while Figure~\ref{fig:ch1_slam_arch} contrasts the multi-thread Atlas SLAM architectures (ORB-SLAM3 and Hybrid KLT ORB-SLAM3) against GPU-accelerated stream concurrency (NVIDIA cuVSLAM). Each framework is rendered with consistent typography and visual hierarchy matching the report style.
 
-\begin{figure}[p]
+\begin{figure}[t]
     \centering
-    \begin{subfigure}[b]{\textwidth}
+    \begin{subfigure}[b]{0.92\textwidth}
         \centering
         \includegraphics[width=\textwidth]{arch_1_openvins.png}
         \caption{OpenVINS: Sequential execution on a single primary MSCKF thread.}
         \label{fig:arch_openvins}
     \end{subfigure}
-    \vspace{0.4em}
-    \begin{subfigure}[b]{\textwidth}
+    \vspace{0.6em}
+    \begin{subfigure}[b]{0.92\textwidth}
         \centering
         \includegraphics[width=\textwidth]{arch_2_kimera.png}
         \caption{Kimera-VIO: Decoupled two-thread concurrency between tracking and iSAM2.}
         \label{fig:arch_kimera}
     \end{subfigure}
-    \vspace{0.4em}
-    \begin{subfigure}[b]{\textwidth}
+    \caption{Architectural overview and multi-thread concurrency models for pure visual-inertial odometry paradigms: OpenVINS (single-thread MSCKF filtering) and Kimera-VIO (decoupled frontend tracking and backend iSAM2 factor graph smoothing).}
+    \label{fig:ch1_vio_arch}
+\end{figure}
+
+\begin{figure}[p]
+    \centering
+    \begin{subfigure}[b]{0.92\textwidth}
         \centering
         \includegraphics[width=\textwidth]{arch_3_orbslam3.png}
         \caption{Baseline ORB-SLAM3: Three-thread CPU architecture with heavy descriptor extraction.}
         \label{fig:arch_orbslam3}
     \end{subfigure}
-    \vspace{0.4em}
-    \begin{subfigure}[b]{\textwidth}
+    \vspace{0.5em}
+    \begin{subfigure}[b]{0.92\textwidth}
         \centering
         \includegraphics[width=\textwidth]{arch_4_orbslam3_klt.png}
         \caption{Hybrid KLT ORB-SLAM3: Dual-rate optical flow tracking on non-keyframes.}
         \label{fig:arch_orbslam3_klt}
     \end{subfigure}
-    \vspace{0.4em}
-    \begin{subfigure}[b]{\textwidth}
+    \vspace{0.5em}
+    \begin{subfigure}[b]{0.92\textwidth}
         \centering
         \includegraphics[width=\textwidth]{arch_5_cuvslam.png}
         \caption{NVIDIA cuVSLAM: Three concurrent GPU CUDA streams executing VO, local BA, and loop PGO.}
         \label{fig:arch_cuvslam}
     \end{subfigure}
-    \caption{Architectural overview and multi-thread concurrency models across the five evaluated visual-inertial state estimation paradigms, illustrating sensor ingestion queues, tracking thread dispatching, backend optimization routines, and map memory interactions across CPU and GPU pipelines.}
-    \label{fig:ch1_multithread_arch}
+    \caption{Architectural overview and multi-thread concurrency models for keyframe-based SLAM and GPU-accelerated pipelines: Baseline ORB-SLAM3 (CPU three-thread model), Hybrid KLT ORB-SLAM3 (dual-rate optical flow), and NVIDIA cuVSLAM (asynchronous CUDA stream concurrency).}
+    \label{fig:ch1_slam_arch}
 \end{figure}
+
+\clearpage
 
 \section{Research Objectives and Scope}
 This monograph presents an in-depth architectural and empirical benchmark answering the core questions faced by roboticists:
