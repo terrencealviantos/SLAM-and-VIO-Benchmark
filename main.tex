@@ -292,7 +292,7 @@ $\mat{P}_t, \mat{\Sigma}_t$ & State error covariance matrix and measurement nois
 \end{tabularx}
 \end{table}
 
-The thread concurrency patterns and inter-thread data flow architectures of the five evaluated visual-inertial paradigms are conceptually illustrated in Figures~\ref{fig:ch1_vio_arch} and~\ref{fig:ch1_slam_arch}. Figure~\ref{fig:ch1_vio_arch} depicts the lightweight, bounded concurrency models of pure VIO architectures (OpenVINS and Kimera-VIO), while Figure~\ref{fig:ch1_slam_arch} contrasts the multi-thread Atlas SLAM architectures (ORB-SLAM3 and Hybrid KLT ORB-SLAM3) against GPU-accelerated stream concurrency (NVIDIA cuVSLAM). Each framework is rendered with consistent typography and visual hierarchy matching the report style.
+The thread concurrency patterns and inter-thread data flow architectures of the five evaluated visual-inertial paradigms are conceptually illustrated on a standardized $\SI{180}{\milli\second}$ execution timeline in Figures~\ref{fig:ch1_vio_arch} and~\ref{fig:ch1_slam_arch}. Figure~\ref{fig:ch1_vio_arch} depicts the lightweight, bounded concurrency models of pure VIO architectures (OpenVINS and Kimera-VIO), while Figure~\ref{fig:ch1_slam_arch} contrasts the multi-thread Atlas SLAM architectures (ORB-SLAM3 and Hybrid KLT ORB-SLAM3) against GPU-accelerated stream concurrency (NVIDIA cuVSLAM). Each framework is plotted on an identical temporal scale ($0-\SI{180}{\milli\second}$) with consistent typography and visual hierarchy matching the report style.
 
 \begin{figure}[t]
     \centering
