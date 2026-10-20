@@ -70,8 +70,6 @@
 \newcommand{\abs}[1]{\left\lvert#1\right\rvert}
 \newcommand{\mat}[1]{\mathbf{#1}}
 \newcommand{\vect}[1]{\mathbf{#1}}
-\newcommand{\SEthree}{\mathrm{SE}(3)}
-\newcommand{\SOthree}{\mathrm{SO}(3)}
 \newcommand{\Simthree}{\mathrm{Sim}(3)}
 \newcommand{\sethree}{\mathfrak{se}(3)}
 \newcommand{\sothree}{\mathfrak{so}(3)}
@@ -114,7 +112,7 @@ Our experimental evaluation is conducted across two complementary testing ground
 Through scoped, microsecond-level software timers (\path{std::chrono::high_resolution_clock}), multi-thread profiling, trajectory accuracy quantification via evo (Absolute Pose Error ATE, Relative Pose Error RPE), and multi-thread Gantt concurrency analysis, we uncover critical algorithmic trade-offs:
 \begin{itemize}
     \item \textbf{Global Consistency vs. Real-Time Determinism in Baseline ORB-SLAM3:} ORB-SLAM3 achieves unmatched metric accuracy on loop-closing trajectories ($\text{ATE RMSE} = \SI{0.0596}{\meter}$ on EuRoC MH\_01) through its Atlas multi-map and keyframe co-visibility graph. However, its CPU tracking thread experiences severe computational bottlenecks (mean latency $\SI{54.66}{\milli\second}$, peak tail latency $\SI{283.30}{\milli\second}$), with ORB descriptor extraction accounting for over $85\%$ of tracking duration. This limits maximum CPU tracking frequency to $\approx 18\,\text{FPS}$, causing frame drops under high-rate sensor streams.
-    \item \textbf{High-Efficiency Hybrid Tracking Breakthrough (ORB-SLAM3 KLT):} By tracking non-keyframes via pyramidal KLT optical flow ($\SI{18.5}-\SI{19.5}{\milli\second}$) and restricting ORB extraction strictly to sparse keyframes, the hybrid architecture achieves a $\mathbf{36.1\%}$ reduction in tracking latency ($25.15\,\text{ms}$ mean, supporting $\approx 40-45\,\text{FPS}$) and reduces keyframe creation and backend bundle adjustment workload by $\mathbf{40\%}$ (181 vs 301 keyframes on EuRoC MH\_01), while matching the centimeter-level accuracy of full SLAM ($\text{ATE RMSE} = \SI{0.0612}{\meter}$).
+    \item \textbf{High-Efficiency Hybrid Tracking Performance (ORB-SLAM3 KLT):} By tracking non-keyframes via pyramidal KLT optical flow ($\SI{18.5}-\SI{19.5}{\milli\second}$) and restricting ORB extraction strictly to sparse keyframes, the hybrid architecture achieves a $\mathbf{36.1\%}$ reduction in tracking latency ($25.15\,\text{ms}$ mean, supporting $\approx 40-45\,\text{FPS}$) and reduces keyframe creation and backend bundle adjustment workload by $\mathbf{40\%}$ (181 vs 301 keyframes on EuRoC MH\_01), while matching the centimeter-level accuracy of full SLAM ($\text{ATE RMSE} = \SI{0.0612}{\meter}$).
     \item \textbf{Filtering \& Fixed-Lag Determinism:} MSCKF-based OpenVINS and factor-graph-based Kimera-VIO provide bounded, highly deterministic compute footprints (mean tracking latencies of $\SI{8.72}{\milli\second}$ and $\SI{6.35}{\milli\second}$, supporting $>100\,\text{FPS}$), but suffer from continuous metric drift over unlooped trajectories.
     \item \textbf{GPU Acceleration Paradigm:} NVIDIA cuVSLAM leverages CUDA cores to execute stereo rectification and KLT optical flow in $\SI{1.87}{\milli\second}$, delivering end-to-end frame tracking in $\SI{5.92}{\milli\second}$ median ($>170\,\text{FPS}$) alongside asynchronous GPU local bundle adjustment ($\SI{8.28}{\milli\second}$ mean) and achieving high accuracy ($\text{ATE RMSE} = \SI{0.0812}{\meter}$).
 \end{itemize}
@@ -205,7 +203,7 @@ To evaluate how different design philosophies navigate the tension between track
 \label{tab:vio_vs_slam_comparison}
 \begin{tabularx}{\textwidth}{>{\raggedright\arraybackslash}p{2.2cm} >{\raggedright\arraybackslash}X >{\raggedright\arraybackslash}X >{\raggedright\arraybackslash}X >{\raggedright\arraybackslash}X >{\raggedright\arraybackslash}X}
 \toprule
-\textbf{Dimension} & \textbf{OpenVINS} & \textbf{Kimera-VIO} & \textbf{ORB-SLAM3} & \textbf{Hybrid KLT (Ours)} & \textbf{NVIDIA cuVSLAM} \\
+\textbf{Dimension} & \textbf{OpenVINS} & \textbf{Kimera-VIO} & \textbf{ORB-SLAM3} & \textbf{ORB-SLAM3 (Hybrid KLT)} & \textbf{NVIDIA cuVSLAM} \\
 \midrule
 \textbf{Paradigm} & Filter-based VIO & Smoother VIO & Full Keyframe SLAM & Dual-Rate Hybrid SLAM & GPU-Accelerated SLAM \\
 \addlinespace[0.3em]
@@ -362,7 +360,7 @@ The design space of visual-inertial navigation has been explored extensively acr
 
 \textbf{GPU-Accelerated Approaches.} NVIDIA cuVSLAM~\cite{cuvslam} represents the state-of-the-art in hardware-accelerated SLAM, offloading all compute-intensive operations (KLT tracking, stereo rectification, bundle adjustment) to CUDA GPU kernels. While its closed-source nature limits detailed analysis, the architectural philosophy of parallelizing visual SLAM across GPU streaming multiprocessors has demonstrated an order-of-magnitude throughput improvement over CPU baselines.
 
-\textbf{Contribution and Novelty.} While hybrid tracking strategies have been explored in systems like VINS-Mono and SVO, no prior work has integrated pyramidal KLT optical flow into the full ORB-SLAM3 three-thread Atlas architecture while preserving DBoW2 loop closing and $\Simthree$ multi-map merging. Our \textbf{Hybrid KLT ORB-SLAM3}~\cite{orbslam3klt} is the first to demonstrate that dual-rate tracking (KLT on non-keyframes, ORB on keyframes) within the ORB-SLAM3 framework achieves a $36.1\%$ latency reduction and $40\%$ keyframe reduction while maintaining centimeter-level accuracy on standard benchmarks.
+\textbf{Hybrid Tracking Formulation.} To evaluate whether the frontend descriptor bottleneck can be alleviated on CPU architectures, the evaluated \textbf{Hybrid KLT ORB-SLAM3} framework~\cite{orbslam3klt} incorporates dual-rate tracking (sparse pyramidal KLT optical flow on non-keyframes and ORB descriptor extraction on keyframes), preserving DBoW2 loop closing while achieving a $36.1\%$ latency reduction and $40\%$ keyframe reduction on standard benchmarks.
 
 % =============================================================================
 % CHAPTER 2: MATHEMATICAL FOUNDATIONS
@@ -1049,8 +1047,8 @@ Table~\ref{tab:ch7_selection_guide} presents an actionable decision matrix for s
 \end{tabularx}
 \end{table}
 
-\section{The Implemented Hybrid Tracking Architecture}
-To resolve the fundamental conflict between KLT optical flow speed and descriptor-based loop closing accuracy, we designed and implemented the \textbf{Hybrid Tracking Architecture} (Algorithm~\ref{alg:hybrid_tracking}), released openly in the \path{ORB_SLAM_3_KLT} repository.
+\section{Hybrid Tracking Architecture}
+To resolve the fundamental conflict between KLT optical flow speed and descriptor-based loop closing accuracy, the \textbf{Hybrid Tracking Architecture} (Algorithm~\ref{alg:hybrid_tracking}) evaluates a dual-rate tracking scheme, released openly in the \path{ORB_SLAM_3_KLT} repository.
 
 \begin{algorithm}[H]
 \caption{Hybrid Visual-Inertial Tracking and Keyframe Pipeline}\label{alg:hybrid_tracking}
@@ -1090,7 +1088,7 @@ Key takeaways include:
 \begin{enumerate}
     \item \textbf{Accuracy vs. Compute Trade-off in Baseline SLAM:} Keyframe-based bundle adjustment SLAM (ORB-SLAM3) achieves unmatched trajectory accuracy ($\text{RMSE} = \SI{0.0596}{\meter}$) when loop closures occur, but suffers from high CPU tracking latency ($\SI{54.66}{\milli\second}$) dominated by ORB descriptor extraction ($>85\%$ of tracking budget).
     \item \textbf{Real-Time Filtering \& Smoothing:} MSCKF (OpenVINS) and factor-graph smoothers (Kimera-VIO) deliver deterministic, low-latency tracking ($\SI{6.35}-\SI{8.72}{\milli\second}$, $>100\,\text{FPS}$), making them ideal for high-speed dynamic flight control despite accumulating gradual metric drift over unlooped paths.
-    \item \textbf{High-Efficiency Hybrid Tracking Breakthrough:} The implemented Hybrid ORB-SLAM3 KLT system achieves a $\mathbf{36.1\%}$ reduction in frame tracking latency ($\SI{25.15}{\milli\second}$ mean on TUM, $\SI{19.00}{\milli\second}$ median on EuRoC), reduces keyframe insertion and backend optimization load by $\mathbf{40\%}$, and completely eliminates thread lock stalls while matching the precision of full SLAM ($\text{RMSE} = \SI{0.0612}{\meter}$).
+    \item \textbf{High-Efficiency Hybrid Tracking Trade-Off:} The evaluated Hybrid ORB-SLAM3 KLT system achieves a $\mathbf{36.1\%}$ reduction in frame tracking latency ($\SI{25.15}{\milli\second}$ mean on TUM, $\SI{19.00}{\milli\second}$ median on EuRoC), reduces keyframe insertion and backend optimization load by $\mathbf{40\%}$, and completely eliminates thread lock stalls while matching the precision of full SLAM ($\text{RMSE} = \SI{0.0612}{\meter}$).
     \item \textbf{GPU Acceleration as the New High-Throughput Standard:} NVIDIA cuVSLAM eliminates CPU bottlenecks by executing stereo rectification, optical flow, and local bundle adjustment on CUDA cores, delivering real-time estimation at over $170\,\text{FPS}$ with $\text{ATE RMSE} < \SI{0.09}{\meter}$.
     \item \textbf{Architectural Trade-Offs:} Hybridizing high-rate KLT optical flow on non-keyframes with asynchronous descriptor extraction on sparse keyframes effectively mitigates the frontend tracking bottleneck, providing an advantageous and computationally scalable design trade-off for CPU-constrained mobile robotics.
     \item \textbf{Outdoor Robustness Gap:} The Suedhoehe outdoor snow benchmark revealed that all tested algorithms failed to maintain reliable long-duration tracking under severe low-texture conditions, highlighting the need for multi-modal sensing (LiDAR, radar) or learned visual features to complement classical geometric approaches.

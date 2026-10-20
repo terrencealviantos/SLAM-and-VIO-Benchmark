@@ -107,7 +107,7 @@ while [[ $# -gt 0 ]]; do
             fi
             shift
             ;;
-        suedhoehe|euroc|euroc_MH01)
+        suedhoehe|euroc|euroc_MH01|schnee|MH_01_easy)
             DATASET="$1"
             shift
             ;;
@@ -162,7 +162,7 @@ fi
 
 # Normalize algorithm & dataset names
 case "$DATASET" in
-    suedhoehe*|suehoehe*|suedhohe*|snow*|d435*)
+    suedhoehe*|suehoehe*|suedhohe*|snow*|d435*|schnee*)
         DATASET="suedhoehe"
         ;;
     euroc*|mh01*|MH01*|MH_01*)
@@ -285,11 +285,31 @@ run_openvins() {
     local config_path="/catkin_ws/src/open_vins/config/suedhoehe/estimator_config.yaml"
     local rviz_cfg="/rviz_cfg/openvins_rviz.rviz"
 
-    if [ "$target_dataset" = "euroc" ] || [ "$target_dataset" = "euroc_MH01" ]; then
+    local gt_arg=""
+    if [ "$target_dataset" = "euroc" ] || [ "$target_dataset" = "euroc_MH01" ] || [ "$target_dataset" = "MH_01_easy" ]; then
         results_dir="${REPO_ROOT}/results/euroc/openvins"
         config_path="/catkin_ws/src/open_vins/config/euroc_mav/estimator_config.yaml"
-        bag_name="MH_01_easy"
+        if [ -d "${bag_dir}/MH_01_easy/MH_01_easy_ros2" ]; then
+            bag_name="MH_01_easy/MH_01_easy_ros2"
+        else
+            bag_name="MH_01_easy"
+        fi
         rviz_cfg="/rviz_cfg/openvins_rviz.rviz"
+        if [ -f "${bag_dir}/MH_01_easy/mav0/state_groundtruth_estimate0/data.csv" ]; then
+            gt_arg="--ros-args -p path_gt:=/dataset_dir/MH_01_easy/mav0/state_groundtruth_estimate0/data.csv"
+        fi
+    elif [ "$target_dataset" = "V1_03_difficult" ]; then
+        results_dir="${REPO_ROOT}/results/euroc/V1_03_difficult/openvins"
+        config_path="/catkin_ws/src/open_vins/config/euroc_mav/estimator_config.yaml"
+        bag_name="V1_03_difficult"
+        rviz_cfg="/rviz_cfg/openvins_rviz.rviz"
+        if [ -f "${bag_dir}/V1_03_difficult/mav0/state_groundtruth_estimate0/data.csv" ]; then
+            gt_arg="--ros-args -p path_gt:=/dataset_dir/V1_03_difficult/mav0/state_groundtruth_estimate0/data.csv"
+        fi
+    else
+        if [ -f "${bag_dir}/suedhoehe_gps_schnee_02/suedhoehe_gt_asl.csv" ]; then
+            gt_arg="--ros-args -p path_gt:=/dataset_dir/suedhoehe_gps_schnee_02/suedhoehe_gt_asl.csv"
+        fi
     fi
 
     mkdir -p "$results_dir"
@@ -297,6 +317,9 @@ run_openvins() {
     echo "=========================================================="
     echo " [OpenVINS] MSCKF Filter Sliding-Window VIO"
     echo " Dataset: $target_dataset | Mode: $( [ "$ENABLE_GUI" = true ] && echo "Live GUI" || echo "Headless" )"
+    if [ -n "$gt_arg" ]; then
+        echo " Ground Truth: Enabled live stream"
+    fi
     echo "=========================================================="
 
     docker kill openvins_node openvins_rviz openvins_player 2>/dev/null || true
@@ -308,9 +331,10 @@ run_openvins() {
             --cpus=${CPUS} --memory=${MEMORY} \
             --net=host --ipc=host \
             -v '${catkin_ws}':/catkin_ws \
+            -v '${bag_dir}':/dataset_dir \
             -v '${results_dir}':/results \
             slam-base:latest \
-            bash -c 'source /opt/ros/humble/setup.bash && source /catkin_ws/install/setup.bash && ros2 run ov_msckf run_subscribe_msckf ${config_path}'"
+            bash -c 'source /opt/ros/humble/setup.bash && source /catkin_ws/install/setup.bash && ros2 run ov_msckf run_subscribe_msckf ${config_path} ${gt_arg}'"
 
         sleep 3
 
@@ -336,11 +360,12 @@ run_openvins() {
           --cpus="${CPUS}" --memory="${MEMORY}" \
           --net=host --ipc=host \
           -v "${catkin_ws}":/catkin_ws \
+          -v "${bag_dir}":/dataset_dir \
           -v "${results_dir}":/results \
           slam-base:latest \
           bash -c "source /opt/ros/humble/setup.bash && \
                    source /catkin_ws/install/setup.bash && \
-                   ros2 run ov_msckf run_subscribe_msckf ${config_path}"
+                   ros2 run ov_msckf run_subscribe_msckf ${config_path} ${gt_arg}"
 
         sleep 3
 
@@ -445,7 +470,11 @@ run_kimera() {
     if [ "$target_dataset" = "euroc" ] || [ "$target_dataset" = "euroc_MH01" ]; then
         results_dir="${REPO_ROOT}/results/euroc/kimera"
         params_path="/opt/overlay_ws/src/MIT-SPARK/Kimera-VIO/params/Euroc"
-        bag_name="MH_01_easy"
+        if [ -d "${bag_dir}/MH_01_easy/MH_01_easy_ros2" ]; then
+            bag_name="MH_01_easy/MH_01_easy_ros2"
+        else
+            bag_name="MH_01_easy"
+        fi
         left_topic="/cam0/image_raw"
         right_topic="/cam1/image_raw"
         imu_topic="/imu0"

@@ -30,7 +30,7 @@ RUN git clone https://github.com/stevenlovegrove/Pangolin.git && \
     cd Pangolin && \
     mkdir build && cd build && \
     cmake .. -DCMAKE_BUILD_TYPE=Release && \
-    make -j3 && \
+    make -j2 && \
     make install
 
 
@@ -39,11 +39,11 @@ RUN git clone https://github.com/stevenlovegrove/Pangolin.git && \
 WORKDIR /opt
 RUN git clone https://github.com/zang09/ORB-SLAM3-STEREO-FIXED.git ORB_SLAM3 && \
     cd ORB_SLAM3 && \
-    sed -i 's/make -j/make -j3/g' build.sh && \
+    sed -i 's/make -j/make -j2/g' build.sh && \
     chmod +x build.sh
 
 # The build.sh uses make -j, which might fail on memory constrained systems, 
-# but inside Docker we use -j$(nproc)
+# but inside Docker we use -j2
 WORKDIR /opt/ORB_SLAM3
 RUN ./build.sh && \
     cd Thirdparty/Sophus/build && \
@@ -58,9 +58,9 @@ WORKDIR /root/ros2_ws
 # Fix CMakePaths in ORB_SLAM3_ROS2 to point to /opt/ORB_SLAM3
 RUN sed -i 's|set(ORB_SLAM3_ROOT_DIR .*)|set(ORB_SLAM3_ROOT_DIR "/opt/ORB_SLAM3")|g' src/orbslam3/CMakeModules/FindORB_SLAM3.cmake
 
-# Build ROS2 wrapper with safe 3 workers (prevents GCC RAM explosion)
+# Build ROS2 wrapper with safe 2 workers (prevents GCC RAM explosion)
 RUN /bin/bash -c "source /opt/ros/humble/setup.bash && \
-    colcon build --symlink-install --parallel-workers 3"
+    colcon build --symlink-install --parallel-workers 2"
 
 # Fix shared library linking for Pangolin
 ENV LD_LIBRARY_PATH=/usr/local/lib:$LD_LIBRARY_PATH
