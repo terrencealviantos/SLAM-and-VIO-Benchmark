@@ -1,0 +1,95 @@
+%YAML:1.0
+
+#--------------------------------------------------------------------------------------------
+# Camera Parameters. RealSense D435i Stereo on Suedhoehe Dataset
+#--------------------------------------------------------------------------------------------
+File.version: "1.0"
+
+Camera.type: "PinHole"
+
+# Left Camera calibration and distortion parameters (OpenCV)
+Camera1.fx: 416.852234
+Camera1.fy: 414.920690
+Camera1.cx: 421.024593
+Camera1.cy: 237.761805
+
+# Distortion parameters (radtan)
+Camera1.k1: -0.045761895
+Camera1.k2: 0.034239511
+Camera1.p1: -0.00040139
+Camera1.p2: 0.00043137
+
+# Right Camera calibration and distortion parameters (OpenCV)
+Camera2.fx: 416.852234
+Camera2.fy: 414.920690
+Camera2.cx: 421.024593
+Camera2.cy: 237.761805
+
+# Distortion parameters
+Camera2.k1: -0.045761895
+Camera2.k2: 0.034239511
+Camera2.p1: -0.00040139
+Camera2.p2: 0.00043137
+
+# Transformation from camera 1 to camera 2 (stereo baseline = 95mm)
+Tlr: !!opencv-matrix
+  rows: 3
+  cols: 4
+  dt: f
+  data: [1.0, 0.0, 0.0, 0.0950,
+         0.0, 1.0, 0.0, 0.0,
+         0.0, 0.0, 1.0, 0.0]
+
+# Camera resolution
+Camera.width: 848
+Camera.height: 480
+
+# Camera frames per second 
+Camera.fps: 30
+
+# Color order of the images (0: BGR, 1: RGB. It is ignored if images are grayscale)
+Camera.RGB: 0
+
+# Close/Far threshold. Baseline times.
+ThDepth: 40.0
+Camera.bf: 39.60096
+
+# Transformation from body-frame (IMU) to left camera (cam0)
+Tbc: !!opencv-matrix
+   rows: 4
+   cols: 4
+   dt: f
+   data: [0.99996544, 0.00734233, -0.00389993, -0.0275343,
+          -0.00734522, 0.99997276, -0.00072794, -0.0030587,
+          0.00389448, 0.00075656, 0.99999213, -0.0236051,
+          0.0, 0.0, 0.0, 1.0]
+
+# IMU noise
+IMU.NoiseGyro: 2.05e-4 # rad/s^0.5
+IMU.NoiseAcc: 2.07e-3 # m/s^1.5
+IMU.GyroWalk: 1.11e-5 # rad/s^1.5
+IMU.AccWalk: 4.13e-4 # m/s^2.5
+IMU.Frequency: 400.0
+
+#--------------------------------------------------------------------------------------------
+# ORB Parameters
+#--------------------------------------------------------------------------------------------
+ORBextractor.nFeatures: 1200
+ORBextractor.scaleFactor: 1.2
+ORBextractor.nLevels: 8
+ORBextractor.iniThFAST: 20
+ORBextractor.minThFAST: 7
+
+#--------------------------------------------------------------------------------------------
+# Viewer Parameters
+#--------------------------------------------------------------------------------------------
+Viewer.KeyFrameSize: 0.05
+Viewer.KeyFrameLineWidth: 1.0
+Viewer.GraphLineWidth: 0.9
+Viewer.PointSize: 2.0
+Viewer.CameraSize: 0.08
+Viewer.CameraLineWidth: 3.0
+Viewer.ViewpointX: 0.0
+Viewer.ViewpointY: -0.7
+Viewer.ViewpointZ: -1.8
+Viewer.ViewpointF: 500.0
