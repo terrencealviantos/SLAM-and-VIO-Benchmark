@@ -67,16 +67,57 @@ def align_sim3(gt, est):
         'matched': len(errors)
     }, len(errors)
 
+def find_repo_root():
+    if os.path.exists("/repo/datasets"):
+        return "/repo"
+    cand = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    if os.path.exists(os.path.join(cand, "datasets")):
+        return cand
+    return "/home/boris/SLAM-and-VIO-Benchmark"
+
+def find_first_existing(candidates):
+    for c in candidates:
+        if os.path.exists(c):
+            return c
+    return candidates[0]
+
 if __name__ == '__main__':
+    root = find_repo_root()
+    print("=======================================================")
+    print("      VISUAL SLAM & VIO SIM(3) EVALUATION")
+    print(f"      Repository Root: {root}")
+    print("=======================================================")
+
     benchmarks = [
-        ("EuRoC MH_01_easy", "/home/boris/SLAM-and-VIO-Benchmark/datasets/MH_01_easy/gt_tum.txt", [
-            ("cuVSLAM", "/home/boris/SLAM-and-VIO-Benchmark/results/euroc/MH_01_easy/cuvslam_tum.txt"),
-            ("OpenVINS", "/home/boris/SLAM-and-VIO-Benchmark/results/euroc/open_vins.txt"),
-            ("Kimera-VIO", "/home/boris/SLAM-and-VIO-Benchmark/results/euroc/kimera.txt"),
-            ("ORB-SLAM3", "/home/boris/SLAM-and-VIO-Benchmark/results/euroc/orb_slam3.txt"),
+        ("EuRoC MH_01_easy", os.path.join(root, "datasets/MH_01_easy/gt_tum.txt"), [
+            ("cuVSLAM", find_first_existing([
+                os.path.join(root, "results/euroc/cuvslam/cuvslam_tum.txt"),
+                os.path.join(root, "results/euroc/MH_01_easy/cuvslam_tum.txt"),
+                os.path.join(root, "results/euroc/cuvslam_tum.txt"),
+            ])),
+            ("OpenVINS", find_first_existing([
+                os.path.join(root, "results/euroc/openvins/openvins_tum.txt"),
+                os.path.join(root, "results/euroc/MH_01_easy/open_vins.txt"),
+                os.path.join(root, "results/euroc/open_vins.txt"),
+            ])),
+            ("Kimera-VIO", find_first_existing([
+                os.path.join(root, "results/euroc/kimera/kimera_tum.txt"),
+                os.path.join(root, "results/euroc/kimera.txt"),
+            ])),
+            ("ORB-SLAM3", find_first_existing([
+                os.path.join(root, "results/euroc/orbslam3/orbslam3_tum.txt"),
+                os.path.join(root, "results/euroc/orbslam3/orbslam3_raw.txt"),
+                os.path.join(root, "results/euroc/orb_slam3.txt"),
+            ])),
+            ("ORB-SLAM3 KLT", find_first_existing([
+                os.path.join(root, "results/euroc/orbslam3_klt/orbslam3_klt_tum.txt"),
+                os.path.join(root, "results/orbslam3_klt/klt_trajectory.txt"),
+            ])),
         ]),
-        ("EuRoC V1_03_difficult", "/home/boris/SLAM-and-VIO-Benchmark/datasets/V1_03_difficult/gt_tum.txt", [
-            ("cuVSLAM", "/home/boris/SLAM-and-VIO-Benchmark/results/euroc/V1_03_difficult/cuvslam/cuvslam_tum.txt"),
+        ("EuRoC V1_03_difficult", os.path.join(root, "datasets/V1_03_difficult/gt_tum.txt"), [
+            ("cuVSLAM", os.path.join(root, "results/euroc/V1_03_difficult/cuvslam/cuvslam_tum.txt")),
+            ("OpenVINS", os.path.join(root, "results/euroc/V1_03_difficult/openvins/openvins_tum.txt")),
+            ("Kimera-VIO", os.path.join(root, "results/euroc/V1_03_difficult/kimera/kimera_tum.txt")),
         ])
     ]
     for dname, gt_path, algos in benchmarks:
@@ -84,9 +125,15 @@ if __name__ == '__main__':
         print(f" Dataset: {dname}")
         print(f"=======================================================")
         gt = load_tum(gt_path)
+        if gt is None:
+            print(f"  [ERROR] Ground truth not found at: {gt_path}")
+            continue
         for aname, epath in algos:
             est = load_tum(epath)
-            if est is None: continue
+            if est is None:
+                print(f"  {aname:15s} | ❌ Not available")
+                continue
             res, _ = align_sim3(gt, est)
             if res:
-                print(f" {aname:12s} | APE RMSE: {res['rmse']:.4f} m ({res['rmse']*100:.2f} cm) | Mean: {res['mean']:.4f} m | Scale: {res['scale']:.4f} | Poses: {res['matched']}")
+                print(f"  {aname:15s} | APE RMSE: {res['rmse']:.4f} m ({res['rmse']*100:.2f} cm) | Mean: {res['mean']:.4f} m | Scale: {res['scale']:.4f} | Poses: {res['matched']}")
+

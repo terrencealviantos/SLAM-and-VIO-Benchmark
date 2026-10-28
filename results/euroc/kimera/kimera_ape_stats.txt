@@ -1,0 +1,36 @@
+[93mInitialized new /root/.evo/settings.json[39m
+--------------------------------------------------------------------------------
+Loaded 36382 stamps and poses from: /repo/datasets/MH_01_easy/gt_tum.txt
+Loaded 907 stamps and poses from: /repo/results/euroc/kimera/kimera_tum.txt
+--------------------------------------------------------------------------------
+Synchronizing trajectories...
+Found 902 of max. 907 possible matching timestamps between...
+	/repo/datasets/MH_01_easy/gt_tum.txt
+and:	/repo/results/euroc/kimera/kimera_tum.txt
+..with max. time diff.: 0.05 (s) and time offset: 0.0 (s).
+--------------------------------------------------------------------------------
+Aligning using Umeyama's method...
+Rotation of alignment:
+[[ 0.99949741 -0.01812009  0.02601147]
+ [ 0.01769431  0.99970717  0.01650703]
+ [-0.02630296 -0.01603848  0.99952535]]
+Translation of alignment:
+[-0.05703814  0.01759173  0.11482152]
+Scale correction: 1.0
+--------------------------------------------------------------------------------
+Compared 902 absolute pose pairs.
+Calculating APE for translation part pose relation...
+--------------------------------------------------------------------------------
+APE w.r.t. translation part (m)
+(with SE(3) Umeyama alignment)
+
+       max	0.165578
+      mean	0.097644
+    median	0.104758
+       min	0.021656
+      rmse	0.101717
+       sse	9.332443
+       std	0.028497
+
+--------------------------------------------------------------------------------
+Saving results to /repo/results/euroc/kimera/kimera_ape.zip...

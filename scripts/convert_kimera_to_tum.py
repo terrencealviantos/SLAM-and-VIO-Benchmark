@@ -4,8 +4,16 @@ import os
 
 def convert_kimera_to_tum(input_csv, output_tum):
     if not os.path.exists(input_csv):
-        print(f"[WARN] Input file does not exist: {input_csv}")
-        return False
+        parent = os.path.dirname(os.path.abspath(input_csv))
+        alt_lcd = os.path.join(parent, "output_lcd_optimized_traj.csv")
+        alt_csv = os.path.join(parent, "output_posesVIO.csv")
+        if os.path.exists(alt_lcd) and os.path.getsize(alt_lcd) > 50:
+            input_csv = alt_lcd
+        elif os.path.exists(alt_csv):
+            input_csv = alt_csv
+        else:
+            print(f"[WARN] Input file does not exist: {input_csv}")
+            return False
 
     os.makedirs(os.path.dirname(os.path.abspath(output_tum)), exist_ok=True)
     count = 0

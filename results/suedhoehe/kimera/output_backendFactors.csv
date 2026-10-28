@@ -1,6 +1,0 @@
-#cur_kf_id,numAddedSmartF,numAddedImuF,numAddedNoMotionF,numAddedConstantF,numAddedBetweenStereoF,state_size,landmark_count
-1,0,1,1,0,1,6,800
-2,0,1,1,0,1,9,1046
-3,0,1,1,0,1,12,1064
-4,0,1,1,0,1,15,1065
-5,0,1,1,0,1,18,1288

@@ -1,6 +1,0 @@
-#timestamp_lkf,mono_status,stereo_status,nr_keypoints,nrDetectedFeatures,nrTrackerFeatures,nrMonoInliers,nrMonoPutatives,nrStereoInliers,nrStereoPutatives,monoRansacIters,stereoRansacIters,nrValidRKP,nrNoLeftRectRKP,nrNoRightRectRKP,nrNoDepthRKP,nrFailedArunRKP,featureDetectionTime,featureTrackingTime,monoRansacTime,stereoRansacTime,featureSelectionTime,extracted_corners,need_n_corners
-1768994825747169678,LOW_DISPARITY,VALID,800,0,798,696,798,527,527,4,1,644,0,0,258,0,13,4,0,1,0,104,104
-1768994825979770264,LOW_DISPARITY,VALID,800,0,795,554,795,427,427,8,1,779,0,0,262,0,18,4,0,1,0,246,246
-1768994826179779785,LOW_DISPARITY,VALID,800,0,800,782,800,594,594,2,1,640,0,0,178,0,10,3,0,2,0,18,18
-1768994826379815430,LOW_DISPARITY,VALID,800,0,800,799,800,621,621,1,1,626,0,0,175,0,9,4,0,2,0,1,1
-1768994826579875244,LOW_DISPARITY,VALID,800,0,800,577,800,468,468,8,1,795,0,0,228,0,17,2,0,1,0,223,223

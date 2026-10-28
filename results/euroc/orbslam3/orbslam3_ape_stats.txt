@@ -1,0 +1,36 @@
+[93mInitialized new /root/.evo/settings.json[39m
+--------------------------------------------------------------------------------
+Loaded 36382 stamps and poses from: /repo/datasets/MH_01_easy/gt_tum.txt
+Loaded 3552 stamps and poses from: /repo/results/euroc/orbslam3/orbslam3_tum.txt
+--------------------------------------------------------------------------------
+Synchronizing trajectories...
+Found 3531 of max. 3552 possible matching timestamps between...
+	/repo/datasets/MH_01_easy/gt_tum.txt
+and:	/repo/results/euroc/orbslam3/orbslam3_tum.txt
+..with max. time diff.: 0.05 (s) and time offset: 0.0 (s).
+--------------------------------------------------------------------------------
+Aligning using Umeyama's method...
+Rotation of alignment:
+[[-0.52068631  0.40035687 -0.7540558 ]
+ [ 0.25910255  0.91567546  0.30725286]
+ [ 0.81348118 -0.03539542 -0.58051316]]
+Translation of alignment:
+[ 4.70335424 -1.74316826  0.8476134 ]
+Scale correction: 1.0
+--------------------------------------------------------------------------------
+Compared 3531 absolute pose pairs.
+Calculating APE for translation part pose relation...
+--------------------------------------------------------------------------------
+APE w.r.t. translation part (m)
+(with SE(3) Umeyama alignment)
+
+       max	0.072544
+      mean	0.038103
+    median	0.041715
+       min	0.002967
+      rmse	0.040947
+       sse	5.920357
+       std	0.014996
+
+--------------------------------------------------------------------------------
+Saving results to /repo/results/euroc/orbslam3/orbslam3_ape.zip...
