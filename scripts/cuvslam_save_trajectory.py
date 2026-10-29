@@ -6,9 +6,10 @@ import os
 import sys
 
 class TrajectorySaver(Node):
-    def __init__(self, output_file):
+    def __init__(self, output_file, dataset=""):
         super().__init__('cuvslam_trajectory_saver')
         self.output_file = output_file
+        self.dataset = dataset
         os.makedirs(os.path.dirname(os.path.abspath(output_file)), exist_ok=True)
         self.f = open(output_file, 'w')
         self.count = 0
@@ -18,12 +19,13 @@ class TrajectorySaver(Node):
             self.odom_callback,
             10
         )
-        self.get_logger().info(f"Recording odometry to TUM format at: {output_file}")
+        self.get_logger().info(f"Recording odometry to TUM format at: {output_file} (dataset: {dataset})")
 
     def odom_callback(self, msg: Odometry):
         t = msg.header.stamp.sec + msg.header.stamp.nanosec * 1e-9
         pos = msg.pose.pose.position
         ori = msg.pose.pose.orientation
+
         line = f"{t:.9f} {pos.x:.6f} {pos.y:.6f} {pos.z:.6f} {ori.x:.6f} {ori.y:.6f} {ori.z:.6f} {ori.w:.6f}\n"
         self.f.write(line)
         self.f.flush()
@@ -38,8 +40,9 @@ class TrajectorySaver(Node):
 
 def main():
     output_path = sys.argv[1] if len(sys.argv) > 1 else "/workspaces/isaac_ros-dev/results/suedhoehe/cuvslam/cuvslam_tum.txt"
+    dataset = sys.argv[2] if len(sys.argv) > 2 else ""
     rclpy.init()
-    node = TrajectorySaver(output_path)
+    node = TrajectorySaver(output_path, dataset)
     try:
         rclpy.spin(node)
     except KeyboardInterrupt:

@@ -286,7 +286,7 @@ run_cuvslam() {
             bash -c 'export LD_LIBRARY_PATH=/workspaces/isaac_ros-dev/install/isaac_ros_visual_slam/share/cuvslam/lib:\$LD_LIBRARY_PATH && \
                      source /opt/ros/humble/setup.bash && \
                      source /workspaces/isaac_ros-dev/install/setup.bash && \
-                     (python3 /scripts/cuvslam_save_trajectory.py /results/cuvslam_tum.txt &) && \
+                     (python3 /scripts/cuvslam_save_trajectory.py /results/cuvslam_tum.txt ${target_dataset} &) && \
                      ros2 launch isaac_ros_visual_slam ${launch_file}'"
 
         sleep 4

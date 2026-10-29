@@ -497,36 +497,44 @@ def render_detailed_orbslam3_gantt():
     p.save(os.path.join(FIG_DIR, "3_orbslam3_gantt_chart.png"))
 
 def render_detailed_orbslam3_klt_gantt():
-    p = CleanGanttPlot(width=1200, height=260, margin_left=240, margin_top=55, margin_bottom=55)
-    lanes = [
-        "Hybrid KLT Tracking",
-        "Original ORB-SLAM3"
+    p = CleanGanttPlot(width=1200, height=320, margin_left=240, margin_top=55, margin_bottom=55)
+    modules = [
+        "KLT / ORB Tracking",
+        "Motion-only BA",
+        "Local Bundle Adjustment",
+        "Loop Closing & Merge"
     ]
-    p.draw_grid_and_axes(max_time_ms=280.0, time_step_ms=40.0, lane_names=lanes)
+    p.draw_grid_and_axes(max_time_ms=160.0, time_step_ms=20.0, lane_names=modules)
     
-    # Lane 0: Hybrid KLT (10 frames F0 - F9)
-    # F0: Keyframe (42ms)
-    p.draw_bar(0, 0.0, 16.0, COLOR_TRACKING)
-    p.draw_bar(0, 16.0, 10.0, COLOR_POSE_OPT)
+    # Frame 0 (Keyframe)
+    p.draw_bar(0, 0.0, 16.0, COLOR_TRACKING)       # ORB extraction on keyframe
+    p.draw_bar(1, 16.0, 6.5, COLOR_POSE_OPT)       # Motion-only BA
+    p.draw_bar(2, 22.5, 45.0, COLOR_MAPPING)       # Local Mapping thread (Local BA)
     
-    # F1 - F9: KLT non-keyframes
-    cur_t = 27.0
-    for i in range(1, 10):
-        p.draw_bar(0, cur_t, 14.0, COLOR_KLT_FAST)
-        p.draw_bar(0, cur_t + 14.0, 6.0, COLOR_POSE_OPT)
-        cur_t += 21.0
-        
-    # Lane 1: Original ORB-SLAM3 (10 consecutive frames with heavy ORB extraction)
-    cur_t = 0.0
-    for i in range(10):
-        p.draw_bar(1, cur_t, 16.0, COLOR_TRACKING)
-        p.draw_bar(1, cur_t + 16.0, 11.5, COLOR_POSE_OPT)
-        cur_t += 27.5
-        
+    # Frame 1 (KLT non-keyframe)
+    p.draw_bar(0, 25.0, 4.2, COLOR_KLT_FAST)       # Fast KLT optical flow
+    p.draw_bar(1, 29.2, 5.8, COLOR_POSE_OPT)       # Motion-only BA
+    
+    # Frame 2 (KLT non-keyframe)
+    p.draw_bar(0, 50.0, 4.0, COLOR_KLT_FAST)       # Fast KLT optical flow
+    p.draw_bar(1, 54.0, 5.5, COLOR_POSE_OPT)       # Motion-only BA
+    
+    # Frame 3 (KLT non-keyframe)
+    p.draw_bar(0, 75.0, 4.5, COLOR_KLT_FAST)       # Fast KLT optical flow
+    p.draw_bar(1, 79.5, 5.6, COLOR_POSE_OPT)       # Motion-only BA
+    
+    # Frame 4 (Keyframe)
+    p.draw_bar(0, 100.0, 15.8, COLOR_TRACKING)     # ORB extraction on keyframe
+    p.draw_bar(1, 115.8, 6.4, COLOR_POSE_OPT)      # Motion-only BA
+    p.draw_bar(2, 122.2, 35.0, COLOR_MAPPING)      # Local Mapping thread (Local BA)
+    p.draw_bar(3, 110.0, 32.0, COLOR_LOOP)         # Loop closing thread
+    
     legend = [
-        (COLOR_TRACKING, "ORB Feature Extraction"),
-        (COLOR_KLT_FAST, "KLT Optical Flow"),
-        (COLOR_POSE_OPT, "Pose Optimization (BA)")
+        (COLOR_TRACKING, "ORB Extraction (Keyframe)"),
+        (COLOR_KLT_FAST, "KLT Optical Flow (Non-KF)"),
+        (COLOR_POSE_OPT, "Motion-only BA"),
+        (COLOR_MAPPING, "Local BA (Keyframe)"),
+        (COLOR_LOOP, "Loop Closing & Merge")
     ]
     p.draw_legend(legend)
     p.save(os.path.join(FIG_DIR, "5_orbslam3_klt_gantt_chart.png"))

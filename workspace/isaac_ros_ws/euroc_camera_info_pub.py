@@ -1,25 +1,54 @@
 #!/usr/bin/env python3
 import rclpy
 from rclpy.node import Node
-from sensor_msgs.msg import CameraInfo
+from sensor_msgs.msg import Image, CameraInfo, Imu
+from rclpy.qos import qos_profile_sensor_data
 
 class EurocCameraInfoPublisher(Node):
     def __init__(self):
         super().__init__('euroc_camera_info_publisher')
         
-        self.pub_cam0 = self.create_publisher(CameraInfo, '/visual_slam/camera_info_0', 10)
-        self.pub_cam1 = self.create_publisher(CameraInfo, '/visual_slam/camera_info_1', 10)
+        self.pub_cam0 = self.create_publisher(CameraInfo, '/visual_slam/camera_info_0', qos_profile_sensor_data)
+        self.pub_cam1 = self.create_publisher(CameraInfo, '/visual_slam/camera_info_1', qos_profile_sensor_data)
+        self.pub_imu = self.create_publisher(Imu, '/visual_slam/imu_flu', qos_profile_sensor_data)
         
-        # Publish at 20 Hz (EuRoC camera rate)
-        self.timer = self.create_timer(1.0 / 20.0, self.timer_callback)
-        self.get_logger().info('Publishing EuRoC CameraInfo on /visual_slam/camera_info_0 and _1 at 20Hz...')
+        self.sub_img0 = self.create_subscription(
+            Image,
+            '/cam0/image_raw',
+            self.cam0_callback,
+            qos_profile_sensor_data
+        )
+        self.sub_img1 = self.create_subscription(
+            Image,
+            '/cam1/image_raw',
+            self.cam1_callback,
+            qos_profile_sensor_data
+        )
+        self.sub_imu = self.create_subscription(
+            Imu,
+            '/imu0',
+            self.imu_callback,
+            qos_profile_sensor_data
+        )
+        self.get_logger().info('Publishing EuRoC CameraInfo & FLU IMU synchronized to image/IMU stamps...')
 
-    def timer_callback(self):
-        now = self.get_clock().now().to_msg()
+    def imu_callback(self, msg: Imu):
+        # Convert EuRoC sensor frame (X=Up, Y=Right, Z=Forward)
+        # to ROS canonical FLU frame (X=Forward, Y=Left, Z=Up)
+        out = Imu()
+        out.header = msg.header
+        out.header.frame_id = 'base_link'
+        out.linear_acceleration.x = msg.linear_acceleration.z
+        out.linear_acceleration.y = -msg.linear_acceleration.y
+        out.linear_acceleration.z = msg.linear_acceleration.x
+        out.angular_velocity.x = msg.angular_velocity.z
+        out.angular_velocity.y = -msg.angular_velocity.y
+        out.angular_velocity.z = msg.angular_velocity.x
+        self.pub_imu.publish(out)
 
-        # Left camera info (cam0)
+    def cam0_callback(self, msg: Image):
         cam0 = CameraInfo()
-        cam0.header.stamp = now
+        cam0.header.stamp = msg.header.stamp
         cam0.header.frame_id = 'cam0'
         cam0.height = 480
         cam0.width = 752
@@ -28,10 +57,11 @@ class EurocCameraInfoPublisher(Node):
         cam0.k = [458.654, 0.0, 367.215, 0.0, 457.296, 248.375, 0.0, 0.0, 1.0]
         cam0.r = [1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0]
         cam0.p = [458.654, 0.0, 367.215, 0.0, 0.0, 457.296, 248.375, 0.0, 0.0, 0.0, 1.0, 0.0]
+        self.pub_cam0.publish(cam0)
 
-        # Right camera info (cam1)
+    def cam1_callback(self, msg: Image):
         cam1 = CameraInfo()
-        cam1.header.stamp = now
+        cam1.header.stamp = msg.header.stamp
         cam1.header.frame_id = 'cam1'
         cam1.height = 480
         cam1.width = 752
@@ -41,8 +71,6 @@ class EurocCameraInfoPublisher(Node):
         cam1.r = [1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0]
         # Tx = -fx * baseline = -458.654 * 0.11007 = -50.484
         cam1.p = [458.654, 0.0, 367.215, -50.484, 0.0, 457.296, 248.375, 0.0, 0.0, 0.0, 1.0, 0.0]
-
-        self.pub_cam0.publish(cam0)
         self.pub_cam1.publish(cam1)
 
 def main(args=None):
