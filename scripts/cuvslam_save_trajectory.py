@@ -25,8 +25,22 @@ class TrajectorySaver(Node):
         t = msg.header.stamp.sec + msg.header.stamp.nanosec * 1e-9
         pos = msg.pose.pose.position
         ori = msg.pose.pose.orientation
+        # When recording EuRoC, convert orientation from ROS FLU base_link
+        # to EuRoC sensor/body frame (R_flu_imu = [[0, 0, 1], [0, -1, 0], [1, 0, 0]])
+        # q_off = [1/sqrt(2), 0, 1/sqrt(2), 0]
+        # q_new = q_ori * q_off:
+        is_euroc = 'euroc' in self.output_file.lower() or 'mh_01' in self.output_file.lower() or \
+                   'euroc' in self.dataset.lower() or 'mh_01' in self.dataset.lower()
+        if is_euroc:
+            s = 0.7071067811865475
+            qx = (ori.w + ori.y) * s
+            qy = (-ori.x + ori.z) * s
+            qz = (ori.w - ori.y) * s
+            qw = -(ori.x + ori.z) * s
+        else:
+            qx, qy, qz, qw = ori.x, ori.y, ori.z, ori.w
 
-        line = f"{t:.9f} {pos.x:.6f} {pos.y:.6f} {pos.z:.6f} {ori.x:.6f} {ori.y:.6f} {ori.z:.6f} {ori.w:.6f}\n"
+        line = f"{t:.9f} {pos.x:.6f} {pos.y:.6f} {pos.z:.6f} {qx:.6f} {qy:.6f} {qz:.6f} {qw:.6f}\n"
         self.f.write(line)
         self.f.flush()
         self.count += 1

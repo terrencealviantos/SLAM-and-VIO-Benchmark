@@ -334,7 +334,7 @@ run_cuvslam() {
                    ros2 launch isaac_ros_visual_slam ${launch_file}"
 
         sleep 4
-        docker exec -d cuvslam_node bash -c "source /opt/ros/humble/setup.bash && python3 /scripts/cuvslam_save_trajectory.py /results/cuvslam_tum.txt"
+        docker exec -d cuvslam_node bash -c "source /opt/ros/humble/setup.bash && python3 /scripts/cuvslam_save_trajectory.py /results/cuvslam_tum.txt ${target_dataset}"
         sleep 1
 
         docker run --rm --name cuvslam_player \
