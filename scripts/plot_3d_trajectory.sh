@@ -117,14 +117,18 @@ elif [ "$ALGO" = "orbslam3" ]; then
     if [ "$DATASET" = "euroc" ]; then
         if [ -f "${REPO_ROOT}/results/euroc/orbslam3/orbslam3_tum.txt" ]; then
             TRAJ_FILE="/repo/results/euroc/orbslam3/orbslam3_tum.txt"
-        elif [ -f "${REPO_ROOT}/results/euroc/orbslam3/orbslam3_raw.txt" ]; then
-            TRAJ_FILE="/repo/results/euroc/orbslam3/orbslam3_raw.txt"
         elif [ -f "${REPO_ROOT}/results/euroc/orb_slam3.txt" ]; then
             TRAJ_FILE="/repo/results/euroc/orb_slam3.txt"
         fi
     else
-        echo "[INFO] ORB-SLAM3 is evaluated on EuRoC. On Suedhoehe snow, tracking repeatedly failed (per Thesis Table 6.3)."
-        exit 0
+        if [ -f "${REPO_ROOT}/results/suedhoehe/orbslam3/orbslam3_tum.txt" ]; then
+            TRAJ_FILE="/repo/results/suedhoehe/orbslam3/orbslam3_tum.txt"
+        elif [ -f "${REPO_ROOT}/results/suedhoehe/orbslam3/f_orbslam3.txt" ]; then
+            TRAJ_FILE="/repo/results/suedhoehe/orbslam3/orbslam3_tum.txt"
+        else
+            echo "[INFO] ORB-SLAM3 is evaluated on EuRoC. On Suedhoehe snow, tracking repeatedly failed (per Thesis Table 6.3)."
+            exit 0
+        fi
     fi
 elif [ "$ALGO" = "orbslam3_klt" ]; then
     if [ "$DATASET" = "euroc" ]; then

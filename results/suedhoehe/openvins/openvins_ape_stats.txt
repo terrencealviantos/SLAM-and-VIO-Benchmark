@@ -1,0 +1,36 @@
+[93mInitialized new /root/.evo/settings.json[39m
+--------------------------------------------------------------------------------
+Loaded 4244 stamps and poses from: /repo/datasets/suedhoehe_gps_schnee_02/gps_trajectory.txt
+Loaded 1110 stamps and poses from: /repo/results/suedhoehe/openvins/openvins_tum.txt
+--------------------------------------------------------------------------------
+Synchronizing trajectories...
+Found 1110 of max. 1110 possible matching timestamps between...
+	/repo/datasets/suedhoehe_gps_schnee_02/gps_trajectory.txt
+and:	/repo/results/suedhoehe/openvins/openvins_tum.txt
+..with max. time diff.: 0.05 (s) and time offset: 0.0 (s).
+--------------------------------------------------------------------------------
+Aligning using Umeyama's method...
+Rotation of alignment:
+[[ 0.11499507  0.19711291 -0.97361319]
+ [ 0.65214473 -0.75430675 -0.07568731]
+ [-0.74932195 -0.62623304 -0.2152877 ]]
+Translation of alignment:
+[ 1.20247985  2.933556   -8.23040114]
+Scale correction: 1.0
+--------------------------------------------------------------------------------
+Compared 1110 absolute pose pairs.
+Calculating APE for translation part pose relation...
+--------------------------------------------------------------------------------
+APE w.r.t. translation part (m)
+(with SE(3) Umeyama alignment)
+
+       max	1924.713789
+      mean	9.758468
+    median	7.126173
+       min	0.690427
+      rmse	81.917677
+       sse	7448661.431398
+       std	81.334360
+
+--------------------------------------------------------------------------------
+Saving results to /repo/results/suedhoehe/openvins/openvins_ape.zip...

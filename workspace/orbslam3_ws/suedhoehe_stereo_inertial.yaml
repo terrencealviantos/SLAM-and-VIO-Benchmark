@@ -31,14 +31,19 @@ Camera2.k2: 0.034239511
 Camera2.p1: -0.00040139
 Camera2.p2: 0.00043137
 
+# Close/Far threshold. Baseline times.
+Stereo.ThDepth: 40.0
+Camera.bf: 39.60096
+
 # Transformation from camera 1 to camera 2 (stereo baseline = 95mm)
-Tlr: !!opencv-matrix
-  rows: 3
+Stereo.T_c1_c2: !!opencv-matrix
+  rows: 4
   cols: 4
   dt: f
   data: [1.0, 0.0, 0.0, 0.0950,
          0.0, 1.0, 0.0, 0.0,
-         0.0, 0.0, 1.0, 0.0]
+         0.0, 0.0, 1.0, 0.0,
+         0.0, 0.0, 0.0, 1.0]
 
 # Camera resolution
 Camera.width: 848
@@ -50,12 +55,8 @@ Camera.fps: 30
 # Color order of the images (0: BGR, 1: RGB. It is ignored if images are grayscale)
 Camera.RGB: 0
 
-# Close/Far threshold. Baseline times.
-ThDepth: 40.0
-Camera.bf: 39.60096
-
 # Transformation from body-frame (IMU) to left camera (cam0)
-Tbc: !!opencv-matrix
+IMU.T_b_c1: !!opencv-matrix
    rows: 4
    cols: 4
    dt: f

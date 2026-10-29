@@ -500,20 +500,25 @@ run_orbslam3_variant() {
         bin_cmd="/opt/ORB_SLAM3_KLT/Examples/Monocular/mono_euroc /opt/ORB_SLAM3_KLT/Vocabulary/ORBvoc.txt /opt/ORB_SLAM3_KLT/Examples/Monocular/EuRoC.yaml /dataset /dataset/timestamps.txt ${algo_sub}"
     fi
 
-    if [ "$target_dataset" = "suedhoehe" ] || [ "$target_dataset" = "schnee" ]; then
-        echo "=========================================================="
-        echo " [$title] Dataset: suedhoehe"
-        echo " [WARN] ORB-SLAM3 repeatedly lost visual tracking on the"
-        echo " outdoor snow sequence due to low texture, producing no"
-        echo " valid trajectory file (as documented in Thesis Table 6.3)."
-        echo " Use 'euroc' to run ORB-SLAM3: ./run_benchmark.sh $algo_sub euroc"
-        echo "=========================================================="
-        return 0
-    fi
-
     local ds_dir="euroc"
     local results_dir="${REPO_ROOT}/results/euroc/${algo_sub}"
     local dataset_path="${REPO_ROOT}/datasets/MH_01_easy"
+
+    if [ "$target_dataset" = "suedhoehe" ] || [ "$target_dataset" = "schnee" ]; then
+        ds_dir="suedhoehe"
+        results_dir="${REPO_ROOT}/results/suedhoehe/${algo_sub}"
+        dataset_path="${REPO_ROOT}/datasets/suedhoehe_asl"
+        config_yaml="/orbslam3_ws/suedhoehe_stereo_inertial.yaml"
+        bin_cmd="/opt/ORB_SLAM3/Examples/Stereo-Inertial/stereo_inertial_euroc /opt/ORB_SLAM3/Vocabulary/ORBvoc.txt ${config_yaml} /dataset /dataset/timestamps.txt ${algo_sub}"
+        if [ "$variant" = "klt" ]; then
+            config_yaml="/orbslam3_ws/suedhoehe_mono.yaml"
+            bin_cmd="/opt/ORB_SLAM3_KLT/Examples/Monocular/mono_euroc /opt/ORB_SLAM3_KLT/Vocabulary/ORBvoc.txt ${config_yaml} /dataset /dataset/timestamps.txt ${algo_sub}"
+        fi
+        echo "=========================================================="
+        echo " [$title] Dataset: suedhoehe (Outdoor Snow Sequence)"
+        echo " [NOTE] Running ORB-SLAM3 on Suedhoehe ASL dataset..."
+        echo "=========================================================="
+    fi
 
     mkdir -p "$results_dir"
 
