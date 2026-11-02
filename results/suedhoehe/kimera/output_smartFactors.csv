@@ -1,0 +1,7 @@
+#cur_kf_id,timestamp_kf,numSF,numValid,numDegenerate,numFarPoints,numOutliers,numCheirality,numNonInitialized,meanPixelError,maxPixelError,meanTrackLength,maxTrackLength,nrElementsInMatrix,nrZeroElementsInMatrix
+1,1768994825780157471,0,0,0,0,0,0,0,0,0,0,0,900,306
+2,1768994825813114014,0,0,0,0,0,0,0,0,0,0,0,2025,924
+3,1768994826146442871,0,0,0,0,0,0,0,0,0,0,0,3600,1992
+4,1768994826346474365,4,0,0,0,0,0,4,0,0,0,0,5625,3510
+5,1768994826546530029,22,0,0,0,0,0,22,0,0,0,0,8100,5478
+6,1768994826713263184,22,0,0,0,0,0,22,0,0,0,0,11025,7896

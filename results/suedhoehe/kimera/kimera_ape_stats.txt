@@ -1,0 +1,13 @@
+[93mInitialized new /root/.evo/settings.json[39m
+--------------------------------------------------------------------------------
+Loaded 4244 stamps and poses from: /repo/datasets/suedhoehe_gps_schnee_02/gps_trajectory.txt
+Loaded 6 stamps and poses from: /repo/results/suedhoehe/kimera/kimera_tum.txt
+--------------------------------------------------------------------------------
+Synchronizing trajectories...
+Found 6 of max. 6 possible matching timestamps between...
+	/repo/datasets/suedhoehe_gps_schnee_02/gps_trajectory.txt
+and:	/repo/results/suedhoehe/kimera/kimera_tum.txt
+..with max. time diff.: 0.05 (s) and time offset: 0.0 (s).
+--------------------------------------------------------------------------------
+Aligning using Umeyama's method...
+[ERROR] Degenerate covariance rank, Umeyama alignment is not possible

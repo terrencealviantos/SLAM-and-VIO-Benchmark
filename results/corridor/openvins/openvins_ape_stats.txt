@@ -1,0 +1,36 @@
+[93mInitialized new /root/.evo/settings.json[39m
+--------------------------------------------------------------------------------
+Loaded 6229 stamps and poses from: /repo/datasets/tum_vi_corridor1/gt_tum.txt
+Loaded 5853 stamps and poses from: /repo/results/corridor/openvins/openvins_tum.txt
+--------------------------------------------------------------------------------
+Synchronizing trajectories...
+Found 912 of max. 5853 possible matching timestamps between...
+	/repo/datasets/tum_vi_corridor1/gt_tum.txt
+and:	/repo/results/corridor/openvins/openvins_tum.txt
+..with max. time diff.: 0.05 (s) and time offset: 0.0 (s).
+--------------------------------------------------------------------------------
+Aligning using Umeyama's method...
+Rotation of alignment:
+[[-0.96390781 -0.19907128 -0.17678335]
+ [-0.19646394  0.08373013  0.97692947]
+ [-0.1796765   0.9764015  -0.11981845]]
+Translation of alignment:
+[ 0.7986973  -0.48587097  0.9622874 ]
+Scale correction: 1.0
+--------------------------------------------------------------------------------
+Compared 912 absolute pose pairs.
+Calculating APE for translation part pose relation...
+--------------------------------------------------------------------------------
+APE w.r.t. translation part (m)
+(with SE(3) Umeyama alignment)
+
+       max	2.073486
+      mean	0.412973
+    median	0.355899
+       min	0.031402
+      rmse	0.484652
+       sse	214.217209
+       std	0.253655
+
+--------------------------------------------------------------------------------
+Saving results to /repo/results/corridor/openvins/openvins_ape.zip...

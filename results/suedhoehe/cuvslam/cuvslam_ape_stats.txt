@@ -1,0 +1,36 @@
+[93mInitialized new /root/.evo/settings.json[39m
+--------------------------------------------------------------------------------
+Loaded 4244 stamps and poses from: /repo/datasets/suedhoehe_gps_schnee_02/gps_trajectory.txt
+Loaded 4121 stamps and poses from: /repo/results/suedhoehe/cuvslam/cuvslam_tum.txt
+--------------------------------------------------------------------------------
+Synchronizing trajectories...
+Found 4121 of max. 4121 possible matching timestamps between...
+	/repo/datasets/suedhoehe_gps_schnee_02/gps_trajectory.txt
+and:	/repo/results/suedhoehe/cuvslam/cuvslam_tum.txt
+..with max. time diff.: 0.05 (s) and time offset: 0.0 (s).
+--------------------------------------------------------------------------------
+Aligning using Umeyama's method...
+Rotation of alignment:
+[[ 0.01161986  0.30800782 -0.95131286]
+ [ 0.33699195  0.89451469  0.29373441]
+ [ 0.94143582 -0.32399792 -0.09340202]]
+Translation of alignment:
+[-102.12712918  127.54896548 -299.94742757]
+Scale correction: 1.0
+--------------------------------------------------------------------------------
+Compared 4121 absolute pose pairs.
+Calculating APE for translation part pose relation...
+--------------------------------------------------------------------------------
+APE w.r.t. translation part (m)
+(with SE(3) Umeyama alignment)
+
+       max	1222.242691
+      mean	582.309913
+    median	467.714224
+       min	194.018372
+      rmse	638.714800
+       sse	1681189128.637827
+       std	262.434297
+
+--------------------------------------------------------------------------------
+Saving results to /repo/results/suedhoehe/cuvslam/cuvslam_ape.zip...

@@ -36,6 +36,9 @@ case "$ALGO" in
     openvins*|ov*)
         ALGO="openvins"
         ;;
+    cuvslam_purestereo*|cuvslam_stereo*)
+        ALGO="cuvslam_purestereo"
+        ;;
     cuvslam*)
         ALGO="cuvslam"
         ;;
@@ -63,6 +66,10 @@ case "$DATASET" in
         DATASET="suedhoehe"
         GT_FILE="/repo/datasets/suedhoehe_gps_schnee_02/gps_trajectory.txt"
         ;;
+    corridor*|tum_vi*|tumvi*)
+        DATASET="corridor"
+        GT_FILE="/repo/datasets/tum_vi_corridor1/gt_tum.txt"
+        ;;
     *)
         DATASET="euroc"
         GT_FILE="/repo/datasets/MH_01_easy/gt_tum.txt"
@@ -86,6 +93,15 @@ if [ "$ALGO" = "openvins" ]; then
                 "${REPO_ROOT}/results/euroc/openvins/openvins_tum.txt"
             TRAJ_FILE="/repo/results/euroc/openvins/openvins_tum.txt"
         fi
+    elif [ "$DATASET" = "corridor" ]; then
+        if [ -f "${REPO_ROOT}/results/corridor/openvins/ov_estimate.txt" ]; then
+            python3 "${REPO_ROOT}/scripts/convert_openvins_to_tum.py" \
+                "${REPO_ROOT}/results/corridor/openvins/ov_estimate.txt" \
+                "${REPO_ROOT}/results/corridor/openvins/openvins_tum.txt"
+            TRAJ_FILE="/repo/results/corridor/openvins/openvins_tum.txt"
+        elif [ -f "${REPO_ROOT}/results/corridor/openvins/openvins_tum.txt" ]; then
+            TRAJ_FILE="/repo/results/corridor/openvins/openvins_tum.txt"
+        fi
     else
         if [ -f "${REPO_ROOT}/results/suedhoehe/openvins/ov_estimate.txt" ]; then
             python3 "${REPO_ROOT}/scripts/convert_openvins_to_tum.py" \
@@ -96,17 +112,27 @@ if [ "$ALGO" = "openvins" ]; then
             TRAJ_FILE="/repo/results/suedhoehe/openvins/openvins_tum.txt"
         fi
     fi
-elif [ "$ALGO" = "cuvslam" ]; then
+elif [ "$ALGO" = "cuvslam" ] || [ "$ALGO" = "cuvslam_purestereo" ]; then
     if [ "$DATASET" = "euroc" ]; then
-        if [ -f "${REPO_ROOT}/results/euroc/cuvslam/cuvslam_tum.txt" ]; then
+        if [ -f "${REPO_ROOT}/results/euroc/${ALGO}/cuvslam_tum.txt" ]; then
+            TRAJ_FILE="/repo/results/euroc/${ALGO}/cuvslam_tum.txt"
+        elif [ -f "${REPO_ROOT}/results/euroc/cuvslam/cuvslam_tum.txt" ]; then
             TRAJ_FILE="/repo/results/euroc/cuvslam/cuvslam_tum.txt"
         elif [ -f "${REPO_ROOT}/results/euroc/MH_01_easy/cuvslam_tum.txt" ]; then
             TRAJ_FILE="/repo/results/euroc/MH_01_easy/cuvslam_tum.txt"
         elif [ -f "${REPO_ROOT}/results/euroc/cuvslam_tum.txt" ]; then
             TRAJ_FILE="/repo/results/euroc/cuvslam_tum.txt"
         fi
+    elif [ "$DATASET" = "corridor" ]; then
+        if [ -f "${REPO_ROOT}/results/corridor/${ALGO}/cuvslam_tum.txt" ]; then
+            TRAJ_FILE="/repo/results/corridor/${ALGO}/cuvslam_tum.txt"
+        elif [ -f "${REPO_ROOT}/results/corridor/cuvslam/cuvslam_tum.txt" ]; then
+            TRAJ_FILE="/repo/results/corridor/cuvslam/cuvslam_tum.txt"
+        fi
     else
-        if [ -f "${REPO_ROOT}/results/suedhoehe/cuvslam/cuvslam_tum.txt" ]; then
+        if [ -f "${REPO_ROOT}/results/suedhoehe/${ALGO}/cuvslam_tum.txt" ]; then
+            TRAJ_FILE="/repo/results/suedhoehe/${ALGO}/cuvslam_tum.txt"
+        elif [ -f "${REPO_ROOT}/results/suedhoehe/cuvslam/cuvslam_tum.txt" ]; then
             TRAJ_FILE="/repo/results/suedhoehe/cuvslam/cuvslam_tum.txt"
         else
             echo "[INFO] cuVSLAM was not evaluated on Suedhoehe (per Thesis Table 6.3)."
@@ -119,6 +145,12 @@ elif [ "$ALGO" = "orbslam3" ]; then
             TRAJ_FILE="/repo/results/euroc/orbslam3/orbslam3_tum.txt"
         elif [ -f "${REPO_ROOT}/results/euroc/orb_slam3.txt" ]; then
             TRAJ_FILE="/repo/results/euroc/orb_slam3.txt"
+        fi
+    elif [ "$DATASET" = "corridor" ]; then
+        if [ -f "${REPO_ROOT}/results/corridor/orbslam3/orbslam3_tum.txt" ]; then
+            TRAJ_FILE="/repo/results/corridor/orbslam3/orbslam3_tum.txt"
+        elif [ -f "${REPO_ROOT}/results/corridor/orbslam3/f_orbslam3.txt" ]; then
+            TRAJ_FILE="/repo/results/corridor/orbslam3/orbslam3_tum.txt"
         fi
     else
         if [ -f "${REPO_ROOT}/results/suedhoehe/orbslam3/orbslam3_tum.txt" ]; then
@@ -139,9 +171,21 @@ elif [ "$ALGO" = "orbslam3_klt" ]; then
         elif [ -f "${REPO_ROOT}/results/orbslam3_klt/orbslam3_klt_raw.txt" ]; then
             TRAJ_FILE="/repo/results/orbslam3_klt/orbslam3_klt_raw.txt"
         fi
+    elif [ "$DATASET" = "corridor" ]; then
+        if [ -f "${REPO_ROOT}/results/corridor/orbslam3_klt/orbslam3_klt_tum.txt" ]; then
+            TRAJ_FILE="/repo/results/corridor/orbslam3_klt/orbslam3_klt_tum.txt"
+        elif [ -f "${REPO_ROOT}/results/corridor/orbslam3_klt/f_orbslam3_klt.txt" ]; then
+            TRAJ_FILE="/repo/results/corridor/orbslam3_klt/orbslam3_klt_tum.txt"
+        fi
     else
-        echo "[INFO] ORB-SLAM3 KLT is evaluated on EuRoC. On Suedhoehe snow, tracking repeatedly failed (per Thesis Table 6.3)."
-        exit 0
+        if [ -f "${REPO_ROOT}/results/suedhoehe/orbslam3_klt/orbslam3_klt_tum.txt" ]; then
+            TRAJ_FILE="/repo/results/suedhoehe/orbslam3_klt/orbslam3_klt_tum.txt"
+        elif [ -f "${REPO_ROOT}/results/suedhoehe/orbslam3_klt/f_orbslam3_klt.txt" ]; then
+            TRAJ_FILE="/repo/results/suedhoehe/orbslam3_klt/orbslam3_klt_tum.txt"
+        else
+            echo "[INFO] ORB-SLAM3 KLT was evaluated on EuRoC. On Suedhoehe snow, tracking repeatedly failed (per Thesis Table 6.3)."
+            exit 0
+        fi
     fi
 elif [ "$ALGO" = "kimera" ]; then
     if [ "$DATASET" = "euroc" ]; then
@@ -162,6 +206,25 @@ elif [ "$ALGO" = "kimera" ]; then
                 "${REPO_ROOT}/results/euroc/kimera/output_posesVIO.csv" \
                 "${REPO_ROOT}/results/euroc/kimera/kimera_tum.txt"
             TRAJ_FILE="/repo/results/euroc/kimera/kimera_tum.txt"
+        fi
+    elif [ "$DATASET" = "corridor" ]; then
+        if [ -f "${REPO_ROOT}/results/corridor/kimera/output_posesVIO.csv" ]; then
+            python3 "${REPO_ROOT}/scripts/convert_kimera_to_tum.py" \
+                "${REPO_ROOT}/results/corridor/kimera/output_posesVIO.csv" \
+                "${REPO_ROOT}/results/corridor/kimera/kimera_tum.txt"
+            TRAJ_FILE="/repo/results/corridor/kimera/kimera_tum.txt"
+        elif [ -f "${REPO_ROOT}/results/corridor/kimera/output_lcd_optimized_traj.csv" ]; then
+            python3 "${REPO_ROOT}/scripts/convert_kimera_to_tum.py" \
+                "${REPO_ROOT}/results/corridor/kimera/output_lcd_optimized_traj.csv" \
+                "${REPO_ROOT}/results/corridor/kimera/kimera_tum.txt"
+            TRAJ_FILE="/repo/results/corridor/kimera/kimera_tum.txt"
+        elif [ -f "${REPO_ROOT}/results/corridor/kimera/traj_vio.csv" ]; then
+            python3 "${REPO_ROOT}/scripts/convert_kimera_to_tum.py" \
+                "${REPO_ROOT}/results/corridor/kimera/traj_vio.csv" \
+                "${REPO_ROOT}/results/corridor/kimera/kimera_tum.txt"
+            TRAJ_FILE="/repo/results/corridor/kimera/kimera_tum.txt"
+        elif [ -f "${REPO_ROOT}/results/corridor/kimera/kimera_tum.txt" ]; then
+            TRAJ_FILE="/repo/results/corridor/kimera/kimera_tum.txt"
         fi
     else
         TRAJ_FILE="/repo/results/suedhoehe/kimera/kimera_tum.txt"

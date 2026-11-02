@@ -1,36 +1,36 @@
 [93mInitialized new /root/.evo/settings.json[39m
 --------------------------------------------------------------------------------
 Loaded 36382 stamps and poses from: /repo/datasets/MH_01_easy/gt_tum.txt
-Loaded 3587 stamps and poses from: /repo/results/euroc/cuvslam/cuvslam_tum.txt
+Loaded 3602 stamps and poses from: /repo/results/euroc/cuvslam/cuvslam_tum.txt
 --------------------------------------------------------------------------------
 Synchronizing trajectories...
-Found 3566 of max. 3587 possible matching timestamps between...
+Found 3581 of max. 3602 possible matching timestamps between...
 	/repo/datasets/MH_01_easy/gt_tum.txt
 and:	/repo/results/euroc/cuvslam/cuvslam_tum.txt
 ..with max. time diff.: 0.05 (s) and time offset: 0.0 (s).
 --------------------------------------------------------------------------------
 Aligning using Umeyama's method...
 Rotation of alignment:
-[[-0.90244584 -0.36962237  0.2212935 ]
- [ 0.39412065 -0.91577298  0.07764513]
- [ 0.17395523  0.15728686  0.97211132]]
+[[-0.93959697 -0.26448016 -0.2172735 ]
+ [ 0.25186231 -0.96407866  0.08436652]
+ [-0.23178201  0.02454752  0.97245798]]
 Translation of alignment:
-[ 0.03158417 -0.06530948 -4.44031202]
+[ 4.0078691  -2.39702059  1.57435982]
 Scale correction: 1.0
 --------------------------------------------------------------------------------
-Compared 3566 absolute pose pairs.
+Compared 3581 absolute pose pairs.
 Calculating APE for translation part pose relation...
 --------------------------------------------------------------------------------
 APE w.r.t. translation part (m)
 (with SE(3) Umeyama alignment)
 
-       max	7.353767
-      mean	1.711543
-    median	1.571529
-       min	0.620545
-      rmse	1.839903
-       sse	12071.773998
-       std	0.675175
+       max	3.886318
+      mean	1.588134
+    median	1.528094
+       min	0.260159
+      rmse	1.713379
+       sse	10512.621232
+       std	0.643037
 
 --------------------------------------------------------------------------------
 Saving results to /repo/results/euroc/cuvslam/cuvslam_ape.zip...

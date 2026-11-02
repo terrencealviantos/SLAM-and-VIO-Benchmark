@@ -1,0 +1,7 @@
+#timestamp_lkf,mono_status,stereo_status,nr_keypoints,nrDetectedFeatures,nrTrackerFeatures,nrMonoInliers,nrMonoPutatives,nrStereoInliers,nrStereoPutatives,monoRansacIters,stereoRansacIters,nrValidRKP,nrNoLeftRectRKP,nrNoRightRectRKP,nrNoDepthRKP,nrFailedArunRKP,featureDetectionTime,featureTrackingTime,monoRansacTime,stereoRansacTime,featureSelectionTime,extracted_corners,need_n_corners
+1768994825780157471,VALID,INVALID,800,0,108,10,108,0,0,101,0,638,9,224,27,0,77,6,9,0,0,790,790
+1768994825813114014,INVALID,INVALID,800,0,0,10,108,0,0,101,0,542,0,0,258,0,54,4,9,0,0,800,800
+1768994826146442871,INVALID,INVALID,800,0,0,10,108,0,0,101,0,559,0,0,241,0,54,2,9,0,0,800,800
+1768994826346474365,FEW_MATCHES,INVALID,800,0,19,4,19,0,0,101,0,568,0,1,246,0,55,1,1,0,0,796,796
+1768994826546530029,VALID,VALID,800,0,419,18,419,6,6,101,1,822,1,0,378,0,51,4,4,0,0,782,782
+1768994826713263184,INVALID,INVALID,0,0,0,18,419,6,6,101,1,0,0,0,0,0,10,2,4,0,0,0,800

@@ -70,6 +70,7 @@ show_help() {
     echo "Supported Datasets:"
     echo "  suedhoehe      - Outdoor winter snow RealSense D435i dataset (GPS GT)"
     echo "  euroc          - EuRoC MAV Machine Hall sequence MH_01_easy (Vicon GT)"
+    echo "  corridor       - TUM-VI indoor corridor sequence corridor1 (MoCap GT)"
     echo "  all            - Benchmark across all available datasets"
     echo ""
     echo "Options & Flags:"
@@ -81,9 +82,11 @@ show_help() {
     echo ""
     echo "Examples:"
     echo "  ./run_benchmark.sh cuvslam suedhoehe --gui"
+    echo "  ./run_benchmark.sh openvins corridor --gui"
     echo "  ./run_benchmark.sh kimera suedhoehe --gui"
     echo "  ./run_benchmark.sh orbslam3_klt euroc --gui"
-    echo "  ./run_benchmark.sh all suedhoehe"
+    echo "  ./run_benchmark.sh all corridor"
+    echo "  ./run_benchmark.sh all all"
     echo "  ./run_benchmark.sh --evaluate"
     echo "=============================================================================="
 }
@@ -107,7 +110,7 @@ while [[ $# -gt 0 ]]; do
             fi
             shift
             ;;
-        suedhoehe|euroc|euroc_MH01|schnee|MH_01_easy)
+        suedhoehe|euroc|euroc_MH01|schnee|MH_01_easy|corridor|tum_vi|tumvi|corridor1)
             DATASET="$1"
             shift
             ;;
@@ -164,6 +167,9 @@ case "$DATASET" in
     euroc*|mh01*|MH01*|MH_01*)
         DATASET="euroc"
         ;;
+    corridor*|tum_vi*|tumvi*)
+        DATASET="corridor"
+        ;;
     all)
         DATASET="all"
         ;;
@@ -188,6 +194,8 @@ save_gantt_chart() {
 
     if [ "$ds" = "euroc" ] || [ "$ds" = "euroc_MH01" ] || [ "$ds" = "MH_01_easy" ]; then
         ds="euroc"
+    elif [ "$ds" = "corridor" ] || [ "$ds" = "tum_vi" ]; then
+        ds="corridor"
     else
         ds="suedhoehe"
     fi
@@ -253,8 +261,18 @@ run_cuvslam() {
             rviz_cfg="/rviz_cfg/suedhoehe_rviz.rviz"
             bag_name="suedhoehe_gps_schnee_02"
             ;;
+        corridor|tum_vi|tumvi|corridor1)
+            results_dir="${results_dir}/corridor/${target_algo}"
+            if [ "$target_algo" = "cuvslam_purestereo" ]; then
+                launch_file="isaac_ros_visual_slam_corridor_purestereo.launch.py"
+            else
+                launch_file="isaac_ros_visual_slam_corridor.launch.py"
+            fi
+            rviz_cfg="/rviz_cfg/openvins_rviz.rviz"
+            bag_name="tum_vi_corridor1/corridor1_ros2"
+            ;;
         *)
-            echo "[ERROR] Unknown dataset for cuVSLAM: '$target_dataset'. Supported: 'euroc', 'suedhoehe'."
+            echo "[ERROR] Unknown dataset for cuVSLAM: '$target_dataset'. Supported: 'euroc', 'suedhoehe', 'corridor'."
             exit 1
             ;;
     esac
@@ -385,6 +403,14 @@ run_openvins() {
         if [ -f "${bag_dir}/V1_03_difficult/mav0/state_groundtruth_estimate0/data.csv" ]; then
             ros_args="${ros_args} -p path_gt:=/dataset_dir/V1_03_difficult/mav0/state_groundtruth_estimate0/data.csv"
         fi
+    elif [ "$target_dataset" = "corridor" ] || [ "$target_dataset" = "tum_vi" ] || [ "$target_dataset" = "corridor1" ]; then
+        results_dir="${REPO_ROOT}/results/corridor/openvins"
+        config_path="/catkin_ws/src/open_vins/config/tum_vi/estimator_config.yaml"
+        bag_name="tum_vi_corridor1/corridor1_ros2"
+        rviz_cfg="/rviz_cfg/openvins_rviz.rviz"
+        if [ -f "${bag_dir}/tum_vi_corridor1_asl/gt_tum.txt" ]; then
+            ros_args="${ros_args} -p path_gt:=/dataset_dir/tum_vi_corridor1_asl/gt_tum.txt"
+        fi
     else
         if [ -f "${bag_dir}/suedhoehe_gps_schnee_02/suedhoehe_gt_asl.csv" ]; then
             ros_args="${ros_args} -p path_gt:=/dataset_dir/suedhoehe_gps_schnee_02/suedhoehe_gt_asl.csv"
@@ -511,12 +537,26 @@ run_orbslam3_variant() {
         config_yaml="/orbslam3_ws/suedhoehe_stereo_inertial.yaml"
         bin_cmd="/opt/ORB_SLAM3/Examples/Stereo-Inertial/stereo_inertial_euroc /opt/ORB_SLAM3/Vocabulary/ORBvoc.txt ${config_yaml} /dataset /dataset/timestamps.txt ${algo_sub}"
         if [ "$variant" = "klt" ]; then
-            config_yaml="/orbslam3_ws/suedhoehe_mono.yaml"
-            bin_cmd="/opt/ORB_SLAM3_KLT/Examples/Monocular/mono_euroc /opt/ORB_SLAM3_KLT/Vocabulary/ORBvoc.txt ${config_yaml} /dataset /dataset/timestamps.txt ${algo_sub}"
+            config_yaml="/orbslam3_ws/suedhoehe_stereo_inertial.yaml"
+            bin_cmd="/opt/ORB_SLAM3_KLT/Examples/Stereo-Inertial/stereo_inertial_euroc /opt/ORB_SLAM3_KLT/Vocabulary/ORBvoc.txt ${config_yaml} /dataset /dataset/timestamps.txt ${algo_sub}"
         fi
         echo "=========================================================="
         echo " [$title] Dataset: suedhoehe (Outdoor Snow Sequence)"
         echo " [NOTE] Running ORB-SLAM3 on Suedhoehe ASL dataset..."
+        echo "=========================================================="
+    elif [ "$target_dataset" = "corridor" ] || [ "$target_dataset" = "tum_vi" ] || [ "$target_dataset" = "corridor1" ]; then
+        ds_dir="corridor"
+        results_dir="${REPO_ROOT}/results/corridor/${algo_sub}"
+        dataset_path="${REPO_ROOT}/datasets/tum_vi_corridor1"
+        config_yaml="/orbslam3_ws/tum_vi_stereo_inertial.yaml"
+        bin_cmd="/opt/ORB_SLAM3/Examples/Stereo-Inertial/stereo_inertial_euroc /opt/ORB_SLAM3/Vocabulary/ORBvoc.txt ${config_yaml} /dataset /dataset/timestamps.txt ${algo_sub}"
+        if [ "$variant" = "klt" ]; then
+            config_yaml="/orbslam3_ws/tum_vi_stereo_inertial.yaml"
+            bin_cmd="/opt/ORB_SLAM3_KLT/Examples/Stereo-Inertial/stereo_inertial_euroc /opt/ORB_SLAM3_KLT/Vocabulary/ORBvoc.txt ${config_yaml} /dataset /dataset/timestamps.txt ${algo_sub}"
+        fi
+        echo "=========================================================="
+        echo " [$title] Dataset: corridor (TUM-VI Corridor 1 Sequence)"
+        echo " [NOTE] Running ORB-SLAM3 on TUM-VI Corridor dataset..."
         echo "=========================================================="
     fi
 
@@ -605,6 +645,14 @@ run_kimera() {
         right_topic="/cam1/image_raw"
         imu_topic="/imu0"
         rviz_cfg="/rviz_cfg/euroc_rviz.rviz"
+    elif [ "$target_dataset" = "corridor" ] || [ "$target_dataset" = "tum_vi" ] || [ "$target_dataset" = "corridor1" ]; then
+        results_dir="${REPO_ROOT}/results/corridor/kimera"
+        params_path="${REPO_ROOT}/corridor_kimera_params"
+        bag_name="tum_vi_corridor1/corridor1_ros2"
+        left_topic="/cam0/image_raw"
+        right_topic="/cam1/image_raw"
+        imu_topic="/imu0"
+        rviz_cfg="/rviz_cfg/openvins_rviz.rviz"
     fi
 
     mkdir -p "$results_dir"
@@ -747,6 +795,11 @@ run_kimera() {
     elif [ -f "${results_dir}/traj_vio.csv" ]; then
         python3 "${SCRIPTS_DIR}/convert_kimera_to_tum.py" "${results_dir}/traj_vio.csv" "${results_dir}/kimera_tum.txt" 2>/dev/null || true
     fi
+
+    # Clean up empty (0-byte) CSV files and empty frontend_images directory created by Kimera loggers
+    find "${results_dir}" -name "*.csv" -size 0 -delete 2>/dev/null || true
+    rm -rf "${results_dir}/frontend_images" 2>/dev/null || true
+
     save_gantt_chart "kimera" "$target_dataset"
 
     echo "[✔] Kimera-VIO run finished: ${results_dir}/kimera_tum.txt"
@@ -758,6 +811,9 @@ run_kimera() {
 case "$ALGORITHM" in
     cuvslam)
         run_cuvslam "$DATASET" "cuvslam"
+        ;;
+    cuvslam_purestereo)
+        run_cuvslam "$DATASET" "cuvslam_purestereo"
         ;;
     openvins)
         run_openvins "$DATASET"
@@ -776,13 +832,31 @@ case "$ALGORITHM" in
         echo " Running Master Benchmark Suite..."
         echo "=========================================================="
         if [ "$DATASET" = "suedhoehe" ]; then
-            echo "[*] Target: Suedhoehe Outdoor Snow Benchmark (OpenVINS, Kimera-VIO)"
+            echo "[*] Target: Suedhoehe Outdoor Snow Benchmark (All Algorithms)"
+            run_cuvslam "suedhoehe"
             run_openvins "suedhoehe"
             run_kimera "suedhoehe"
+            run_orbslam3_variant "baseline" "suedhoehe"
+            run_orbslam3_variant "klt" "suedhoehe"
+            save_gantt_chart "cuvslam" "suedhoehe"
             save_gantt_chart "openvins" "suedhoehe"
             save_gantt_chart "kimera" "suedhoehe"
+            save_gantt_chart "orbslam3" "suedhoehe"
+            save_gantt_chart "orbslam3_klt" "suedhoehe"
+        elif [ "$DATASET" = "corridor" ]; then
+            echo "[*] Target: TUM-VI Corridor 1 Benchmark (All 5 Algorithms)"
+            run_cuvslam "corridor"
+            run_openvins "corridor"
+            run_kimera "corridor"
+            run_orbslam3_variant "baseline" "corridor"
+            run_orbslam3_variant "klt" "corridor"
+            save_gantt_chart "cuvslam" "corridor"
+            save_gantt_chart "openvins" "corridor"
+            save_gantt_chart "kimera" "corridor"
+            save_gantt_chart "orbslam3" "corridor"
+            save_gantt_chart "orbslam3_klt" "corridor"
         elif [ "$DATASET" = "all" ]; then
-            echo "[*] Target: Complete Suite (EuRoC 5-way + Suedhoehe 2-way)"
+            echo "[*] Target: Complete Suite (EuRoC + Suedhoehe + Corridor)"
             run_cuvslam "euroc"
             run_openvins "euroc"
             run_kimera "euroc"
@@ -794,10 +868,27 @@ case "$ALGORITHM" in
             save_gantt_chart "orbslam3" "euroc"
             save_gantt_chart "orbslam3_klt" "euroc"
 
+            run_cuvslam "suedhoehe"
             run_openvins "suedhoehe"
             run_kimera "suedhoehe"
+            run_orbslam3_variant "baseline" "suedhoehe"
+            run_orbslam3_variant "klt" "suedhoehe"
+            save_gantt_chart "cuvslam" "suedhoehe"
             save_gantt_chart "openvins" "suedhoehe"
             save_gantt_chart "kimera" "suedhoehe"
+            save_gantt_chart "orbslam3" "suedhoehe"
+            save_gantt_chart "orbslam3_klt" "suedhoehe"
+
+            run_cuvslam "corridor"
+            run_openvins "corridor"
+            run_kimera "corridor"
+            run_orbslam3_variant "baseline" "corridor"
+            run_orbslam3_variant "klt" "corridor"
+            save_gantt_chart "cuvslam" "corridor"
+            save_gantt_chart "openvins" "corridor"
+            save_gantt_chart "kimera" "corridor"
+            save_gantt_chart "orbslam3" "corridor"
+            save_gantt_chart "orbslam3_klt" "corridor"
         else
             echo "[*] Target: EuRoC MH_01_easy 5-Way Benchmark (All 5 Algorithms)"
             run_cuvslam "euroc"

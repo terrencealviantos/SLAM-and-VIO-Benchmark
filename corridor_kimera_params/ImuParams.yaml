@@ -1,0 +1,26 @@
+%YAML:1.0
+# Type of IMU preintegration:
+# 0: CombinedImuFactor
+# 1: ImuFactor
+imu_preintegration_type: 1
+
+# Sensor extrinsics wrt. the body-frame.
+T_BS:
+  cols: 4
+  rows: 4
+  data: [1.0, 0.0, 0.0, 0.0,
+         0.0, 1.0, 0.0, 0.0,
+         0.0, 0.0, 1.0, 0.0,
+         0.0, 0.0, 0.0, 1.0]
+rate_hz: 200
+
+# inertial sensor noise model parameters (static)
+gyroscope_noise_density: 0.00016
+gyroscope_random_walk: 2.2e-05
+accelerometer_noise_density: 0.0028
+accelerometer_random_walk: 0.00086
+
+# Extra parameters
+imu_integration_sigma: 1.0e-8
+imu_time_shift: 0.0
+n_gravity: [0.0, 0.0, -9.81]
