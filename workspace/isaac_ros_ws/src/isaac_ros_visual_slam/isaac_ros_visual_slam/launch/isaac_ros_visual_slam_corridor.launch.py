@@ -23,8 +23,9 @@ def generate_launch_description():
         package='tf2_ros',
         executable='static_transform_publisher',
         name='tf_base_to_cam0',
-        arguments=['--x', '0.047280', '--y', '-0.047443', '--z', '-0.068200',
-                   '--qx', '-0.013355', '--qy', '-0.694797', '--qz', '0.719041', '--qw', '-0.007689',
+        # T_imu_cam0 (inverse of TUM-VI's T_cam_imu): pose of cam0 in the IMU/base frame
+        arguments=['--x', '0.045575', '--y', '-0.071162', '--z', '-0.044681',
+                   '--qx', '-0.013355', '--qy', '-0.694797', '--qz', '0.719041', '--qw', '0.007689',
                    '--frame-id', 'base_link',
                    '--child-frame-id', 'cam0']
     )
@@ -33,8 +34,9 @@ def generate_launch_description():
         package='tf2_ros',
         executable='static_transform_publisher',
         name='tf_base_to_cam1',
-        arguments=['--x', '-0.053697', '--y', '-0.046132', '--z', '-0.071493',
-                   '--qx', '0.013494', '--qy', '0.711473', '--qz', '-0.702540', '--qw', '0.007898',
+        # T_imu_cam1 (inverse of TUM-VI's T_cam_imu): pose of cam1 in the IMU/base frame
+        arguments=['--x', '-0.055456', '--y', '-0.069250', '--z', '-0.047453',
+                   '--qx', '0.013494', '--qy', '0.711473', '--qz', '-0.702540', '--qw', '-0.007898',
                    '--frame-id', 'base_link',
                    '--child-frame-id', 'cam1']
     )

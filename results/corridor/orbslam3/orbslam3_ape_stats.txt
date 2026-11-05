@@ -1,36 +1,36 @@
 [93mInitialized new /root/.evo/settings.json[39m
 --------------------------------------------------------------------------------
 Loaded 6229 stamps and poses from: /repo/datasets/tum_vi_corridor1/gt_tum.txt
-Loaded 5901 stamps and poses from: /repo/results/corridor/orbslam3/orbslam3_tum.txt
+Loaded 5925 stamps and poses from: /repo/results/corridor/orbslam3/orbslam3_tum.txt
 --------------------------------------------------------------------------------
 Synchronizing trajectories...
-Found 952 of max. 5901 possible matching timestamps between...
+Found 976 of max. 5925 possible matching timestamps between...
 	/repo/datasets/tum_vi_corridor1/gt_tum.txt
 and:	/repo/results/corridor/orbslam3/orbslam3_tum.txt
 ..with max. time diff.: 0.05 (s) and time offset: 0.0 (s).
 --------------------------------------------------------------------------------
 Aligning using Umeyama's method...
 Rotation of alignment:
-[[ 9.99502593e-01 -4.75905902e-04 -3.15331453e-02]
- [ 2.27715157e-04  9.99968974e-01 -7.87391309e-03]
- [ 3.15359143e-02  7.86281597e-03  9.99471692e-01]]
+[[ 0.99929519  0.01272037 -0.03531742]
+ [-0.01325452  0.99980066 -0.01493145]
+ [ 0.03512045  0.01538904  0.9992646 ]]
 Translation of alignment:
-[ 0.70277496 -0.21921638  1.27678326]
+[ 0.73269033 -0.20963989  1.27615851]
 Scale correction: 1.0
 --------------------------------------------------------------------------------
-Compared 952 absolute pose pairs.
+Compared 976 absolute pose pairs.
 Calculating APE for translation part pose relation...
 --------------------------------------------------------------------------------
 APE w.r.t. translation part (m)
 (with SE(3) Umeyama alignment)
 
-       max	0.053387
-      mean	0.014812
-    median	0.013996
-       min	0.004712
-      rmse	0.015545
-       sse	0.230052
-       std	0.004716
+       max	0.066212
+      mean	0.032008
+    median	0.031724
+       min	0.000790
+      rmse	0.034075
+       sse	1.133266
+       std	0.011688
 
 --------------------------------------------------------------------------------
 Saving results to /repo/results/corridor/orbslam3/orbslam3_ape.zip...

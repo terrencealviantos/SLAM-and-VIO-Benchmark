@@ -1,0 +1,36 @@
+[93mInitialized new /root/.evo/settings.json[39m
+--------------------------------------------------------------------------------
+Loaded 6229 stamps and poses from: /repo/datasets/tum_vi_corridor1/gt_tum.txt
+Loaded 3908 stamps and poses from: /repo/results/corridor/cuvslam/cuvslam_tum.txt
+--------------------------------------------------------------------------------
+Synchronizing trajectories...
+Found 650 of max. 3908 possible matching timestamps between...
+	/repo/datasets/tum_vi_corridor1/gt_tum.txt
+and:	/repo/results/corridor/cuvslam/cuvslam_tum.txt
+..with max. time diff.: 0.05 (s) and time offset: 0.0 (s).
+--------------------------------------------------------------------------------
+Aligning using Umeyama's method...
+Rotation of alignment:
+[[-0.18832514 -0.97511154 -0.1170091 ]
+ [ 0.60248121 -0.20879553  0.77033812]
+ [-0.77559656  0.07457825  0.62680783]]
+Translation of alignment:
+[ 1.41462314 -3.06434858  1.28584318]
+Scale correction: 1.0
+--------------------------------------------------------------------------------
+Compared 650 absolute pose pairs.
+Calculating APE for translation part pose relation...
+--------------------------------------------------------------------------------
+APE w.r.t. translation part (m)
+(with SE(3) Umeyama alignment)
+
+       max	4.955220
+      mean	2.965225
+    median	2.722405
+       min	1.846419
+      rmse	3.027754
+       sse	5958.740857
+       std	0.612156
+
+--------------------------------------------------------------------------------
+Saving results to /repo/results/corridor/cuvslam/cuvslam_ape.zip...

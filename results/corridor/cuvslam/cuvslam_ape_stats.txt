@@ -1,36 +1,36 @@
 [93mInitialized new /root/.evo/settings.json[39m
 --------------------------------------------------------------------------------
 Loaded 6229 stamps and poses from: /repo/datasets/tum_vi_corridor1/gt_tum.txt
-Loaded 3908 stamps and poses from: /repo/results/corridor/cuvslam/cuvslam_tum.txt
+Loaded 3971 stamps and poses from: /repo/results/corridor/cuvslam/cuvslam_tum.txt
 --------------------------------------------------------------------------------
 Synchronizing trajectories...
-Found 650 of max. 3908 possible matching timestamps between...
+Found 632 of max. 3971 possible matching timestamps between...
 	/repo/datasets/tum_vi_corridor1/gt_tum.txt
 and:	/repo/results/corridor/cuvslam/cuvslam_tum.txt
 ..with max. time diff.: 0.05 (s) and time offset: 0.0 (s).
 --------------------------------------------------------------------------------
 Aligning using Umeyama's method...
 Rotation of alignment:
-[[-0.18832514 -0.97511154 -0.1170091 ]
- [ 0.60248121 -0.20879553  0.77033812]
- [-0.77559656  0.07457825  0.62680783]]
+[[ 0.40546221  0.28824872 -0.86747511]
+ [-0.40239393 -0.79580706 -0.45251547]
+ [-0.82077982  0.53254464 -0.20668016]]
 Translation of alignment:
-[ 1.41462314 -3.06434858  1.28584318]
+[ 2.02629094 -0.5253022   3.79419431]
 Scale correction: 1.0
 --------------------------------------------------------------------------------
-Compared 650 absolute pose pairs.
+Compared 632 absolute pose pairs.
 Calculating APE for translation part pose relation...
 --------------------------------------------------------------------------------
 APE w.r.t. translation part (m)
 (with SE(3) Umeyama alignment)
 
-       max	4.955220
-      mean	2.965225
-    median	2.722405
-       min	1.846419
-      rmse	3.027754
-       sse	5958.740857
-       std	0.612156
+       max	4.228012
+      mean	2.479299
+    median	2.477498
+       min	0.920402
+      rmse	2.556561
+       sse	4130.753607
+       std	0.623761
 
 --------------------------------------------------------------------------------
 Saving results to /repo/results/corridor/cuvslam/cuvslam_ape.zip...

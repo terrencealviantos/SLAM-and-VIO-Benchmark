@@ -1,0 +1,94 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 2250 1360" width="2250" height="1360">
+<defs><style>
+  text { font-family: "DejaVu Sans", "Helvetica", Arial, sans-serif; }
+</style></defs>
+<rect width="2250" height="1360" fill="#1a1a2e"/>
+<rect x="480" y="170" width="1680" height="1070" rx="6" fill="#16213e" stroke="#2a3b5c" stroke-width="1.5"/>
+<line x1="480.0" y1="170" x2="480.0" y2="1240" stroke="#ffffff22" stroke-dasharray="6,6" stroke-width="1.2"/>
+<text x="480.0" y="1270" fill="#a0a0b0" font-size="18" text-anchor="middle" font-weight="bold">0 ms</text>
+<line x1="818.378135613623" y1="170" x2="818.378135613623" y2="1240" stroke="#ffffff22" stroke-dasharray="6,6" stroke-width="1.2"/>
+<text x="818.378135613623" y="1270" fill="#a0a0b0" font-size="18" text-anchor="middle" font-weight="bold">10 ms</text>
+<line x1="1156.756271227246" y1="170" x2="1156.756271227246" y2="1240" stroke="#ffffff22" stroke-dasharray="6,6" stroke-width="1.2"/>
+<text x="1156.756271227246" y="1270" fill="#a0a0b0" font-size="18" text-anchor="middle" font-weight="bold">20 ms</text>
+<line x1="1495.134406840869" y1="170" x2="1495.134406840869" y2="1240" stroke="#ffffff22" stroke-dasharray="6,6" stroke-width="1.2"/>
+<text x="1495.134406840869" y="1270" fill="#a0a0b0" font-size="18" text-anchor="middle" font-weight="bold">30 ms</text>
+<line x1="1833.512542454492" y1="170" x2="1833.512542454492" y2="1240" stroke="#ffffff22" stroke-dasharray="6,6" stroke-width="1.2"/>
+<text x="1833.512542454492" y="1270" fill="#a0a0b0" font-size="18" text-anchor="middle" font-weight="bold">40 ms</text>
+<text x="1125" y="65" fill="#ffffff" font-size="32" font-weight="bold" text-anchor="middle">NVIDIA cuVSLAM Fig. 2 Architecture Timeline — Suedhoehe Dataset</text>
+<text x="1125" y="105" fill="#64B5F6" font-size="20" font-weight="bold" text-anchor="middle">Hardware: NVIDIA GeForce RTX 3050 Mobile (CUDA Accelerated, Compute Capability 8.6)</text>
+<text x="460" y="242.42857142857144" fill="#ffffff" font-size="18" font-weight="bold" text-anchor="end">GPU Stereo Rectification</text>
+<text x="460" y="266.42857142857144" fill="#8172B2" font-size="15" font-weight="bold" text-anchor="end">[GPU Tracking Frontend]</text>
+<rect x="480.0" y="216.42857142857144" width="31.56083324900467" height="60" rx="6" fill="#4C72B0" stroke="#ffffff" stroke-width="1.2" opacity="0.95"/>
+<rect x="750.7025084908984" y="216.42857142857144" width="31.627832119856127" height="60" rx="6" fill="#55A868" stroke="#ffffff" stroke-width="1.2" opacity="0.95"/>
+<rect x="1021.4050169817967" y="216.42857142857144" width="31.264921569410486" height="60" rx="6" fill="#C44E52" stroke="#ffffff" stroke-width="1.2" opacity="0.95"/>
+<rect x="1292.1075254726952" y="216.42857142857144" width="28.02583070406262" height="60" rx="6" fill="#8172B2" stroke="#ffffff" stroke-width="1.2" opacity="0.95"/>
+<rect x="1562.8100339635935" y="216.42857142857144" width="31.714186220064768" height="60" rx="6" fill="#CCB974" stroke="#ffffff" stroke-width="1.2" opacity="0.95"/>
+<rect x="1833.512542454492" y="216.42857142857144" width="34.137041346685386" height="60" rx="6" fill="#64B5F6" stroke="#ffffff" stroke-width="1.2" opacity="0.95"/>
+<line x1="480" y1="322.8571428571429" x2="2160" y2="322.8571428571429" stroke="#ffffff15" stroke-width="1"/>
+<text x="460" y="395.28571428571433" fill="#ffffff" font-size="18" font-weight="bold" text-anchor="end">GPU Feature Tracking (KLT)</text>
+<text x="460" y="419.28571428571433" fill="#8172B2" font-size="15" font-weight="bold" text-anchor="end">[GPU Tracking Frontend]</text>
+<rect x="511.56083324900465" y="369.28571428571433" width="61.1372817595168" height="60" rx="6" fill="#4C72B0" stroke="#ffffff" stroke-width="1.2" opacity="0.95"/>
+<text x="542.129474128763" y="405.28571428571433" fill="#ffffff" font-size="14" font-weight="bold" text-anchor="middle">F50</text>
+<rect x="782.3303406107545" y="369.28571428571433" width="49.93317563558707" height="60" rx="6" fill="#55A868" stroke="#ffffff" stroke-width="1.2" opacity="0.95"/>
+<text x="807.2969284285481" y="405.28571428571433" fill="#ffffff" font-size="14" font-weight="bold" text-anchor="middle">F51</text>
+<rect x="1052.6699385512075" y="369.28571428571433" width="63.58030422302008" height="60" rx="6" fill="#C44E52" stroke="#ffffff" stroke-width="1.2" opacity="0.95"/>
+<text x="1084.4600906627174" y="405.28571428571433" fill="#ffffff" font-size="14" font-weight="bold" text-anchor="middle">F52</text>
+<rect x="1320.1333561767578" y="369.28571428571433" width="64.68389067451031" height="60" rx="6" fill="#8172B2" stroke="#ffffff" stroke-width="1.2" opacity="0.95"/>
+<text x="1352.475301514013" y="405.28571428571433" fill="#ffffff" font-size="14" font-weight="bold" text-anchor="middle">F53</text>
+<rect x="1594.5242201836584" y="369.28571428571433" width="67.09848937462188" height="60" rx="6" fill="#CCB974" stroke="#ffffff" stroke-width="1.2" opacity="0.95"/>
+<text x="1628.0734648709692" y="405.28571428571433" fill="#ffffff" font-size="14" font-weight="bold" text-anchor="middle">F54</text>
+<rect x="1867.6495838011774" y="369.28571428571433" width="69.98847551745726" height="60" rx="6" fill="#64B5F6" stroke="#ffffff" stroke-width="1.2" opacity="0.95"/>
+<text x="1902.643821559906" y="405.28571428571433" fill="#ffffff" font-size="14" font-weight="bold" text-anchor="middle">F55</text>
+<line x1="480" y1="475.7142857142857" x2="2160" y2="475.7142857142857" stroke="#ffffff15" stroke-width="1"/>
+<text x="460" y="548.1428571428571" fill="#ffffff" font-size="18" font-weight="bold" text-anchor="end">IMU Pre-Integration</text>
+<text x="460" y="572.1428571428571" fill="#8172B2" font-size="15" font-weight="bold" text-anchor="end">[GPU Tracking Frontend]</text>
+<rect x="572.6981150085214" y="522.1428571428571" width="14.925656535035545" height="60" rx="6" fill="#4C72B0" stroke="#ffffff" stroke-width="1.2" opacity="0.95"/>
+<rect x="832.2635162463416" y="522.1428571428571" width="16.126594376141853" height="60" rx="6" fill="#55A868" stroke="#ffffff" stroke-width="1.2" opacity="0.95"/>
+<rect x="1116.2502427742274" y="522.1428571428571" width="15.85582419202379" height="60" rx="6" fill="#C44E52" stroke="#ffffff" stroke-width="1.2" opacity="0.95"/>
+<rect x="1384.817246851268" y="522.1428571428571" width="18.776129015810195" height="60" rx="6" fill="#8172B2" stroke="#ffffff" stroke-width="1.2" opacity="0.95"/>
+<rect x="1661.6227095582803" y="522.1428571428571" width="11.292219790443669" height="60" rx="6" fill="#CCB974" stroke="#ffffff" stroke-width="1.2" opacity="0.95"/>
+<rect x="1937.6380593186345" y="522.1428571428571" width="14.575638191556681" height="60" rx="6" fill="#64B5F6" stroke="#ffffff" stroke-width="1.2" opacity="0.95"/>
+<line x1="480" y1="628.5714285714286" x2="2160" y2="628.5714285714286" stroke="#ffffff15" stroke-width="1"/>
+<text x="460" y="701.0" fill="#ffffff" font-size="18" font-weight="bold" text-anchor="end">GPU Pose Optimization</text>
+<text x="460" y="725.0" fill="#8172B2" font-size="15" font-weight="bold" text-anchor="end">[GPU Tracking Frontend]</text>
+<rect x="587.623771543557" y="675.0" width="86.64497005397006" height="60" rx="6" fill="#4C72B0" stroke="#ffffff" stroke-width="1.2" opacity="0.95"/>
+<text x="630.9462565705421" y="711.0" fill="#ffffff" font-size="15" font-weight="bold" text-anchor="middle">F50 (2.6ms)</text>
+<rect x="848.3901106224835" y="675.0" width="76.80503538376655" height="60" rx="6" fill="#55A868" stroke="#ffffff" stroke-width="1.2" opacity="0.95"/>
+<text x="886.7926283143668" y="711.0" fill="#ffffff" font-size="15" font-weight="bold" text-anchor="middle">F51 (2.3ms)</text>
+<rect x="1132.106066966251" y="675.0" width="91.33055977343903" height="60" rx="6" fill="#C44E52" stroke="#ffffff" stroke-width="1.2" opacity="0.95"/>
+<text x="1177.7713468529705" y="711.0" fill="#ffffff" font-size="15" font-weight="bold" text-anchor="middle">F52 (2.7ms)</text>
+<rect x="1403.5933758670783" y="675.0" width="79.94173302527767" height="60" rx="6" fill="#8172B2" stroke="#ffffff" stroke-width="1.2" opacity="0.95"/>
+<text x="1443.5642423797171" y="711.0" fill="#ffffff" font-size="15" font-weight="bold" text-anchor="middle">F53 (2.4ms)</text>
+<rect x="1672.914929348724" y="675.0" width="76.34883398133239" height="60" rx="6" fill="#CCB974" stroke="#ffffff" stroke-width="1.2" opacity="0.95"/>
+<text x="1711.0893463393902" y="711.0" fill="#ffffff" font-size="15" font-weight="bold" text-anchor="middle">F54 (2.3ms)</text>
+<rect x="1952.2136975101912" y="675.0" width="83.34185804536418" height="60" rx="6" fill="#64B5F6" stroke="#ffffff" stroke-width="1.2" opacity="0.95"/>
+<text x="1993.8846265328732" y="711.0" fill="#ffffff" font-size="15" font-weight="bold" text-anchor="middle">F55 (2.5ms)</text>
+<line x1="480" y1="781.4285714285714" x2="2160" y2="781.4285714285714" stroke="#ffffff15" stroke-width="1"/>
+<text x="460" y="853.8571428571429" fill="#ffffff" font-size="18" font-weight="bold" text-anchor="end">Keyframe Insertion</text>
+<text x="460" y="877.8571428571429" fill="#8172B2" font-size="15" font-weight="bold" text-anchor="end">[GPU Local Mapping Thread]</text>
+<rect x="1230.2041894519625" y="827.8571428571429" width="48.432976171343995" height="60" rx="6" fill="#C44E52" stroke="#ffffff" stroke-width="1.2" opacity="0.95"/>
+<text x="1254.4206775376344" y="863.8571428571429" fill="#ffffff" font-size="14" font-weight="bold" text-anchor="middle">F52</text>
+<line x1="480" y1="934.2857142857143" x2="2160" y2="934.2857142857143" stroke="#ffffff15" stroke-width="1"/>
+<text x="460" y="1006.7142857142858" fill="#ffffff" font-size="18" font-weight="bold" text-anchor="end">GPU Local Bundle Adjustment</text>
+<text x="460" y="1030.7142857142858" fill="#8172B2" font-size="15" font-weight="bold" text-anchor="end">[GPU Local Mapping Thread]</text>
+<rect x="1278.6371656233066" y="980.7142857142858" width="291.73467221247176" height="60" rx="6" fill="#C44E52" stroke="#ffffff" stroke-width="1.2" opacity="0.95"/>
+<text x="1424.5045017295424" y="1016.7142857142858" fill="#ffffff" font-size="15" font-weight="bold" text-anchor="middle">F52 (8.6ms)</text>
+<line x1="480" y1="1087.142857142857" x2="2160" y2="1087.142857142857" stroke="#ffffff15" stroke-width="1"/>
+<text x="460" y="1159.5714285714284" fill="#ffffff" font-size="18" font-weight="bold" text-anchor="end">Map Point Maintenance</text>
+<text x="460" y="1183.5714285714284" fill="#8172B2" font-size="15" font-weight="bold" text-anchor="end">[GPU Local Mapping Thread]</text>
+<rect x="1570.3718378357783" y="1133.5714285714284" width="33.4741247412048" height="60" rx="6" fill="#C44E52" stroke="#ffffff" stroke-width="1.2" opacity="0.95"/>
+<rect x="1560" y="125" width="590" height="38" rx="6" fill="#0f3460" stroke="#394b6e" stroke-width="1.5" opacity="0.9"/>
+<rect x="1575" y="136" width="24" height="16" rx="3" fill="#4C72B0"/>
+<text x="1607" y="149" fill="#ffffff" font-size="14" font-weight="bold">F50</text>
+<rect x="1670" y="136" width="24" height="16" rx="3" fill="#55A868"/>
+<text x="1702" y="149" fill="#ffffff" font-size="14" font-weight="bold">F51</text>
+<rect x="1765" y="136" width="24" height="16" rx="3" fill="#C44E52"/>
+<text x="1797" y="149" fill="#ffffff" font-size="14" font-weight="bold">F52</text>
+<rect x="1860" y="136" width="24" height="16" rx="3" fill="#8172B2"/>
+<text x="1892" y="149" fill="#ffffff" font-size="14" font-weight="bold">F53</text>
+<rect x="1955" y="136" width="24" height="16" rx="3" fill="#CCB974"/>
+<text x="1987" y="149" fill="#ffffff" font-size="14" font-weight="bold">F54</text>
+<rect x="2050" y="136" width="24" height="16" rx="3" fill="#64B5F6"/>
+<text x="2082" y="149" fill="#ffffff" font-size="14" font-weight="bold">F55</text>
+<text x="1320" y="1325" fill="#ffffff" font-size="20" font-weight="bold" text-anchor="middle">Timeline (ms) from first frame start</text>
+</svg>

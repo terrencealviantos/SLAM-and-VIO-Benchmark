@@ -1,0 +1,182 @@
+diff --git a/include/kimera-vio/pipeline/PipelineModule.h b/include/kimera-vio/pipeline/PipelineModule.h
+index 13fb2483..e91fa691 100644
+--- a/include/kimera-vio/pipeline/PipelineModule.h
++++ b/include/kimera-vio/pipeline/PipelineModule.h
+@@ -27,6 +27,7 @@
+ #include "kimera-vio/pipeline/PipelinePayload.h"
+ #include "kimera-vio/pipeline/QueueSynchronizer.h"
+ #include "kimera-vio/utils/Macros.h"
++#include "kimera-vio/utils/ScopedTiming.h"
+ #include "kimera-vio/utils/Statistics.h"
+ #include "kimera-vio/utils/ThreadsafeQueue.h"
+ #include "kimera-vio/utils/Timer.h"
+@@ -196,6 +197,12 @@ class PipelineModule : public PipelineModuleBase {
+       InputUniquePtr input = getInputPacket();
+       is_thread_working_ = true;
+       if (input) {
++        // Benchmark instrumentation: timestamp of the packet and wall-clock start.
++        long long timing_frame_id = -1;
++        if constexpr (std::is_base_of<PipelinePayload, Input>::value) {
++          timing_frame_id = input->timestamp_;
++        }
++        const auto timing_start = std::chrono::steady_clock::now();
+         auto tic = utils::Timer::tic();
+         // Transfer the ownership of input to the actual pipeline module.
+         // From this point on, you cannot use input, since spinOnce owns it.
+@@ -214,6 +221,8 @@ class PipelineModule : public PipelineModuleBase {
+         }
+         auto spin_duration = utils::Timer::toc(tic).count();
+         timing_stats.AddSample(spin_duration);
++        TimingLog::record(name_id_, timing_frame_id, timing_start,
++                          std::chrono::steady_clock::now());
+       } else {
+         // TODO(nathan) switch to VLOG_IS_ON(1) when we fix how spinning works
+         LOG_IF_EVERY_N(WARNING, VLOG_IS_ON(10), 50)
+diff --git a/include/kimera-vio/utils/ScopedTiming.h b/include/kimera-vio/utils/ScopedTiming.h
+new file mode 100644
+index 00000000..f0e8f1a3
+--- /dev/null
++++ b/include/kimera-vio/utils/ScopedTiming.h
+@@ -0,0 +1,68 @@
++/**
++ * Benchmark instrumentation (not part of upstream Kimera-VIO).
++ *
++ * One CSV row per module execution with real start/end timestamps, same layout as the
++ * OpenVINS / ORB-SLAM3 logs of this benchmark:
++ *     frame_id,module,thread_id,start_ns,end_ns,duration_ms
++ * Recorded in PipelineModule::spin() around spinOnce(), i.e. exactly the interval Kimera
++ * itself measures for its "<module> [ms]" statistics. frame_id is the timestamp [ns] of
++ * the packet being processed (the camera frame), or -1 if the payload has none.
++ * Timestamps come from std::chrono::steady_clock (only differences are meaningful).
++ *
++ * Output path: $KIMERA_TIMING_CSV, or kimera_scoped_timing.csv in the working directory.
++ */
++#pragma once
++
++#include <chrono>
++#include <cstdlib>
++#include <fstream>
++#include <functional>
++#include <iomanip>
++#include <mutex>
++#include <string>
++#include <thread>
++
++namespace VIO {
++
++class TimingLog {
++ public:
++  static void record(const std::string& module,
++                     long long frame_id,
++                     const std::chrono::steady_clock::time_point& start,
++                     const std::chrono::steady_clock::time_point& end) {
++    static TimingLog log;  // opened on first use
++    log.write(module, frame_id, start, end);
++  }
++
++ private:
++  TimingLog() {
++    const char* path = std::getenv("KIMERA_TIMING_CSV");
++    ofs_.open(path ? path : "kimera_scoped_timing.csv",
++              std::ios::out | std::ios::trunc);
++    ofs_ << "frame_id,module,thread_id,start_ns,end_ns,duration_ms\n";
++  }
++
++  void write(const std::string& module,
++             long long frame_id,
++             const std::chrono::steady_clock::time_point& start,
++             const std::chrono::steady_clock::time_point& end) {
++    using std::chrono::duration_cast;
++    using std::chrono::nanoseconds;
++    const long long start_ns =
++        duration_cast<nanoseconds>(start.time_since_epoch()).count();
++    const long long end_ns =
++        duration_cast<nanoseconds>(end.time_since_epoch()).count();
++    const size_t thread_id =
++        std::hash<std::thread::id>()(std::this_thread::get_id());
++    std::lock_guard<std::mutex> lock(mtx_);
++    ofs_ << frame_id << ',' << module << ',' << thread_id << ',' << start_ns
++         << ',' << end_ns << ',' << std::fixed << std::setprecision(4)
++         << (end_ns - start_ns) * 1e-6 << '\n';
++    ofs_.flush();
++  }
++
++  std::ofstream ofs_;
++  std::mutex mtx_;
++};
++
++}  // namespace VIO
+diff --git a/src/backend/VioBackend.cpp b/src/backend/VioBackend.cpp
+index 09c19bee..4b43c154 100644
+--- a/src/backend/VioBackend.cpp
++++ b/src/backend/VioBackend.cpp
+@@ -1123,7 +1123,7 @@ bool VioBackend::optimize(
+ 
+   if (VLOG_IS_ON(10) || log_output_) {
+     debug_info_.factorsAndSlotsTime_ =
+-        utils::Timer::toc<std::chrono::seconds>(start_time).count();
++        (utils::Timer::toc<std::chrono::microseconds>(start_time).count() / 1000.0);
+     start_time = utils::Timer::tic();
+   }
+ 
+@@ -1168,7 +1168,7 @@ bool VioBackend::optimize(
+   // Store time before iSAM update.
+   if (VLOG_IS_ON(10) || log_output_) {
+     debug_info_.updateTime_ =
+-        utils::Timer::toc<std::chrono::seconds>(start_time).count();
++        (utils::Timer::toc<std::chrono::microseconds>(start_time).count() / 1000.0);
+     start_time = utils::Timer::tic();
+   }
+ 
+@@ -1185,7 +1185,7 @@ bool VioBackend::optimize(
+   // Store time after iSAM update.
+   if (VLOG_IS_ON(10) || log_output_) {
+     debug_info_.updateTime_ =
+-        utils::Timer::toc<std::chrono::seconds>(start_time).count();
++        (utils::Timer::toc<std::chrono::microseconds>(start_time).count() / 1000.0);
+     start_time = utils::Timer::tic();
+   }
+ 
+@@ -1212,7 +1212,7 @@ bool VioBackend::optimize(
+ 
+     if (VLOG_IS_ON(5) || log_output_) {
+       debug_info_.updateSlotTime_ =
+-          utils::Timer::toc<std::chrono::seconds>(start_time).count();
++          (utils::Timer::toc<std::chrono::microseconds>(start_time).count() / 1000.0);
+       start_time = utils::Timer::tic();
+     }
+ 
+@@ -1227,7 +1227,7 @@ bool VioBackend::optimize(
+ 
+     if (VLOG_IS_ON(5) || log_output_) {
+       debug_info_.extraIterationsTime_ =
+-          utils::Timer::toc<std::chrono::seconds>(start_time).count();
++          (utils::Timer::toc<std::chrono::microseconds>(start_time).count() / 1000.0);
+       start_time = utils::Timer::tic();
+     }
+ 
+@@ -2171,7 +2171,7 @@ void VioBackend::postDebug(
+ 
+     // Sanity check timings
+     const auto& end_time =
+-        utils::Timer::toc<std::chrono::seconds>(total_start_time).count();
++        (utils::Timer::toc<std::chrono::microseconds>(total_start_time).count() / 1000.0);
+     const auto& end_time_from_sum = debug_info_.sumAllTimes();
+     LOG_IF(ERROR, end_time != end_time_from_sum)
+         << "Optimize: time measurement mismatch."
+diff --git a/src/dataprovider/EurocDataProvider.cpp b/src/dataprovider/EurocDataProvider.cpp
+index 3d2f70d2..7c04761d 100644
+--- a/src/dataprovider/EurocDataProvider.cpp
++++ b/src/dataprovider/EurocDataProvider.cpp
+@@ -313,6 +313,11 @@ bool EurocDataProvider::parseGtData(const std::string& input_dataset_path,
+ 
+   std::string filename_sensor =
+       input_dataset_path + "/mav0/" + gt_sensor_name + "/sensor.yaml";
++  if (!std::ifstream(filename_sensor).good()) {
++    LOG(WARNING) << "Cannot open file in parseGtData: " << filename_sensor
++                 << "\nAssuming dataset has no ground truth...";
++    return false;
++  }
+   YamlParser yaml_parser(filename_sensor);
+ 
+   // Rows and cols are redundant info, since the pose 4x4, but we parse just

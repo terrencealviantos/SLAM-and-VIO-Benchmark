@@ -1,0 +1,308 @@
+diff --git a/include/ScopedTiming.h b/include/ScopedTiming.h
+new file mode 100644
+index 0000000..8c5c46d
+--- /dev/null
++++ b/include/ScopedTiming.h
+@@ -0,0 +1,69 @@
++/**
++ * Benchmark instrumentation (not part of upstream ORB-SLAM3).
++ *
++ * Writes one CSV row per measured module execution with real start/end timestamps, in
++ * the same layout as OpenVINS' ov_scoped_timing.csv:
++ *     frame_id,module,thread_id,start_ns,end_ns,duration_ms
++ * Rows are recorded at ORB-SLAM3's own REGISTER_TIMES measurement points, so the module
++ * boundaries are exactly the ones ORB-SLAM3 itself uses for its timing statistics.
++ * frame_id is Frame::mnId (one per stereo image); local mapping and loop closing rows use
++ * the frame that created the keyframe being processed (KeyFrame::mnFrameId).
++ * Timestamps come from std::chrono::steady_clock (only differences are meaningful).
++ *
++ * Output path: $ORB_SLAM3_TIMING_CSV, or orbslam3_scoped_timing.csv in the working dir.
++ */
++#ifndef ORB_SLAM3_SCOPED_TIMING_H
++#define ORB_SLAM3_SCOPED_TIMING_H
++
++#include <chrono>
++#include <cstdlib>
++#include <fstream>
++#include <functional>
++#include <iomanip>
++#include <mutex>
++#include <thread>
++
++namespace ORB_SLAM3
++{
++
++class TimingLog
++{
++public:
++    static void record(const char *module, long frame_id,
++                       const std::chrono::steady_clock::time_point &start,
++                       const std::chrono::steady_clock::time_point &end)
++    {
++        static TimingLog log;  // opened on first use
++        log.write(module, frame_id, start, end);
++    }
++
++private:
++    TimingLog()
++    {
++        const char *path = std::getenv("ORB_SLAM3_TIMING_CSV");
++        ofs_.open(path ? path : "orbslam3_scoped_timing.csv", std::ios::out | std::ios::trunc);
++        ofs_ << "frame_id,module,thread_id,start_ns,end_ns,duration_ms\n";
++    }
++
++    void write(const char *module, long frame_id,
++               const std::chrono::steady_clock::time_point &start,
++               const std::chrono::steady_clock::time_point &end)
++    {
++        using std::chrono::duration_cast;
++        using std::chrono::nanoseconds;
++        const long long start_ns = duration_cast<nanoseconds>(start.time_since_epoch()).count();
++        const long long end_ns = duration_cast<nanoseconds>(end.time_since_epoch()).count();
++        const size_t thread_id = std::hash<std::thread::id>()(std::this_thread::get_id());
++        std::lock_guard<std::mutex> lock(mtx_);
++        ofs_ << frame_id << ',' << module << ',' << thread_id << ',' << start_ns << ',' << end_ns << ','
++             << std::fixed << std::setprecision(4) << (end_ns - start_ns) * 1e-6 << '\n';
++        ofs_.flush();
++    }
++
++    std::ofstream ofs_;
++    std::mutex mtx_;
++};
++
++} // namespace ORB_SLAM3
++
++#endif // ORB_SLAM3_SCOPED_TIMING_H
+diff --git a/include/Settings.h b/include/Settings.h
+index beab7de..64eb987 100644
+--- a/include/Settings.h
++++ b/include/Settings.h
+@@ -21,7 +21,7 @@
+ 
+ 
+ // Flag to activate the measurement of time in each process (track,localmap, place recognition).
+-//#define REGISTER_TIMES
++#define REGISTER_TIMES  // benchmark: per-module timing (see ScopedTiming.h)
+ 
+ #include "CameraModels/GeometricCamera.h"
+ 
+diff --git a/src/Frame.cc b/src/Frame.cc
+index a04c312..d07d3b4 100644
+--- a/src/Frame.cc
++++ b/src/Frame.cc
+@@ -17,6 +17,7 @@
+ */
+ 
+ #include "Frame.h"
++#include "ScopedTiming.h"
+ 
+ #include "G2oTypes.h"
+ #include "MapPoint.h"
+@@ -127,6 +128,7 @@ Frame::Frame(const cv::Mat &imLeft, const cv::Mat &imRight, const double &timeSt
+     std::chrono::steady_clock::time_point time_EndExtORB = std::chrono::steady_clock::now();
+ 
+     mTimeORB_Ext = std::chrono::duration_cast<std::chrono::duration<double,std::milli> >(time_EndExtORB - time_StartExtORB).count();
++    TimingLog::record("tracking/orb_extraction", mnId, time_StartExtORB, time_EndExtORB);
+ #endif
+ 
+     N = mvKeys.size();
+@@ -143,6 +145,7 @@ Frame::Frame(const cv::Mat &imLeft, const cv::Mat &imRight, const double &timeSt
+     std::chrono::steady_clock::time_point time_EndStereoMatches = std::chrono::steady_clock::now();
+ 
+     mTimeStereoMatch = std::chrono::duration_cast<std::chrono::duration<double,std::milli> >(time_EndStereoMatches - time_StartStereoMatches).count();
++    TimingLog::record("tracking/stereo_matching", mnId, time_StartStereoMatches, time_EndStereoMatches);
+ #endif
+ 
+     mvpMapPoints = vector<MapPoint*>(N,static_cast<MapPoint*>(NULL));
+@@ -224,6 +227,7 @@ Frame::Frame(const cv::Mat &imGray, const cv::Mat &imDepth, const double &timeSt
+     std::chrono::steady_clock::time_point time_EndExtORB = std::chrono::steady_clock::now();
+ 
+     mTimeORB_Ext = std::chrono::duration_cast<std::chrono::duration<double,std::milli> >(time_EndExtORB - time_StartExtORB).count();
++    TimingLog::record("tracking/orb_extraction", mnId, time_StartExtORB, time_EndExtORB);
+ #endif
+ 
+ 
+@@ -313,6 +317,7 @@ Frame::Frame(const cv::Mat &imGray, const double &timeStamp, ORBextractor* extra
+     std::chrono::steady_clock::time_point time_EndExtORB = std::chrono::steady_clock::now();
+ 
+     mTimeORB_Ext = std::chrono::duration_cast<std::chrono::duration<double,std::milli> >(time_EndExtORB - time_StartExtORB).count();
++    TimingLog::record("tracking/orb_extraction", mnId, time_StartExtORB, time_EndExtORB);
+ #endif
+ 
+ 
+@@ -1064,6 +1069,7 @@ Frame::Frame(const cv::Mat &imLeft, const cv::Mat &imRight, const double &timeSt
+     std::chrono::steady_clock::time_point time_EndExtORB = std::chrono::steady_clock::now();
+ 
+     mTimeORB_Ext = std::chrono::duration_cast<std::chrono::duration<double,std::milli> >(time_EndExtORB - time_StartExtORB).count();
++    TimingLog::record("tracking/orb_extraction", mnId, time_StartExtORB, time_EndExtORB);
+ #endif
+ 
+     Nleft = mvKeys.size();
+@@ -1107,6 +1113,7 @@ Frame::Frame(const cv::Mat &imLeft, const cv::Mat &imRight, const double &timeSt
+     std::chrono::steady_clock::time_point time_EndStereoMatches = std::chrono::steady_clock::now();
+ 
+     mTimeStereoMatch = std::chrono::duration_cast<std::chrono::duration<double,std::milli> >(time_EndStereoMatches - time_StartStereoMatches).count();
++    TimingLog::record("tracking/stereo_matching", mnId, time_StartStereoMatches, time_EndStereoMatches);
+ #endif
+ 
+     //Put all descriptors in the same matrix
+diff --git a/src/LocalMapping.cc b/src/LocalMapping.cc
+index 53df332..cf52653 100644
+--- a/src/LocalMapping.cc
++++ b/src/LocalMapping.cc
+@@ -18,6 +18,7 @@
+ 
+ 
+ #include "LocalMapping.h"
++#include "ScopedTiming.h"
+ #include "LoopClosing.h"
+ #include "ORBmatcher.h"
+ #include "Optimizer.h"
+@@ -86,6 +87,7 @@ void LocalMapping::Run()
+ 
+             double timeProcessKF = std::chrono::duration_cast<std::chrono::duration<double,std::milli> >(time_EndProcessKF - time_StartProcessKF).count();
+             vdKFInsert_ms.push_back(timeProcessKF);
++            TimingLog::record("local_mapping/process_new_keyframe", mpCurrentKeyFrame->mnFrameId, time_StartProcessKF, time_EndProcessKF);
+ #endif
+ 
+             // Check recent MapPoints
+@@ -95,6 +97,7 @@ void LocalMapping::Run()
+ 
+             double timeMPCulling = std::chrono::duration_cast<std::chrono::duration<double,std::milli> >(time_EndMPCulling - time_EndProcessKF).count();
+             vdMPCulling_ms.push_back(timeMPCulling);
++            TimingLog::record("local_mapping/map_point_culling", mpCurrentKeyFrame->mnFrameId, time_EndProcessKF, time_EndMPCulling);
+ #endif
+ 
+             // Triangulate new MapPoints
+@@ -113,6 +116,7 @@ void LocalMapping::Run()
+ 
+             double timeMPCreation = std::chrono::duration_cast<std::chrono::duration<double,std::milli> >(time_EndMPCreation - time_EndMPCulling).count();
+             vdMPCreation_ms.push_back(timeMPCreation);
++            TimingLog::record("local_mapping/map_point_creation", mpCurrentKeyFrame->mnFrameId, time_EndMPCulling, time_EndMPCreation);
+ #endif
+ 
+             bool b_doneLBA = false;
+@@ -163,6 +167,7 @@ void LocalMapping::Run()
+                 {
+                     timeLBA_ms = std::chrono::duration_cast<std::chrono::duration<double,std::milli> >(time_EndLBA - time_EndMPCreation).count();
+                     vdLBA_ms.push_back(timeLBA_ms);
++                    TimingLog::record("local_mapping/local_ba", mpCurrentKeyFrame->mnFrameId, time_EndMPCreation, time_EndLBA);
+ 
+                     nLBA_exec += 1;
+                     if(mbAbortBA)
+@@ -195,6 +200,7 @@ void LocalMapping::Run()
+ 
+                 timeKFCulling_ms = std::chrono::duration_cast<std::chrono::duration<double,std::milli> >(time_EndKFCulling - time_EndLBA).count();
+                 vdKFCulling_ms.push_back(timeKFCulling_ms);
++                TimingLog::record("local_mapping/keyframe_culling", mpCurrentKeyFrame->mnFrameId, time_EndLBA, time_EndKFCulling);
+ #endif
+ 
+                 if ((mTinit<50.0f) && mbInertial)
+@@ -254,6 +260,7 @@ void LocalMapping::Run()
+ 
+             double timeLocalMap = std::chrono::duration_cast<std::chrono::duration<double,std::milli> >(time_EndLocalMap - time_StartProcessKF).count();
+             vdLMTotal_ms.push_back(timeLocalMap);
++            TimingLog::record("local_mapping/total", mpCurrentKeyFrame->mnFrameId, time_StartProcessKF, time_EndLocalMap);
+ #endif
+         }
+         else if(Stop() && !mbBadImu)
+diff --git a/src/LoopClosing.cc b/src/LoopClosing.cc
+index 319afb5..be3cee4 100644
+--- a/src/LoopClosing.cc
++++ b/src/LoopClosing.cc
+@@ -18,6 +18,7 @@
+ 
+ 
+ #include "LoopClosing.h"
++#include "ScopedTiming.h"
+ 
+ #include "Sim3Solver.h"
+ #include "Converter.h"
+@@ -116,6 +117,7 @@ void LoopClosing::Run()
+ 
+             double timePRTotal = std::chrono::duration_cast<std::chrono::duration<double,std::milli> >(time_EndPR - time_StartPR).count();
+             vdPRTotal_ms.push_back(timePRTotal);
++            TimingLog::record("loop_closing/place_recognition", mpCurrentKF->mnFrameId, time_StartPR, time_EndPR);
+ #endif
+             if(bFindedRegion)
+             {
+@@ -187,6 +189,7 @@ void LoopClosing::Run()
+ 
+                         double timeMergeTotal = std::chrono::duration_cast<std::chrono::duration<double,std::milli> >(time_EndMerge - time_StartMerge).count();
+                         vdMergeTotal_ms.push_back(timeMergeTotal);
++                        TimingLog::record("loop_closing/map_merge", mpCurrentKF->mnFrameId, time_StartMerge, time_EndMerge);
+ #endif
+ 
+                         Verbose::PrintMess("Merge finished!", Verbose::VERBOSITY_QUIET);
+@@ -277,6 +280,7 @@ void LoopClosing::Run()
+ 
+                         double timeLoopTotal = std::chrono::duration_cast<std::chrono::duration<double,std::milli> >(time_EndLoop - time_StartLoop).count();
+                         vdLoopTotal_ms.push_back(timeLoopTotal);
++                        TimingLog::record("loop_closing/loop_correction", mpCurrentKF->mnFrameId, time_StartLoop, time_EndLoop);
+ #endif
+ 
+                         mnNumCorrection += 1;
+diff --git a/src/Tracking.cc b/src/Tracking.cc
+index 5191451..d293f40 100644
+--- a/src/Tracking.cc
++++ b/src/Tracking.cc
+@@ -18,6 +18,7 @@
+ 
+ 
+ #include "Tracking.h"
++#include "ScopedTiming.h"
+ 
+ #include "ORBmatcher.h"
+ #include "FrameDrawer.h"
+@@ -1453,6 +1454,9 @@ bool Tracking::GetStepByStep()
+ 
+ Sophus::SE3f Tracking::GrabImageStereo(const cv::Mat &imRectLeft, const cv::Mat &imRectRight, const double &timestamp, string filename)
+ {
++#ifdef REGISTER_TIMES
++    const std::chrono::steady_clock::time_point time_StartFrame = std::chrono::steady_clock::now();
++#endif
+     //cout << "GrabImageStereo" << endl;
+ 
+     mImGray = imRectLeft;
+@@ -1511,6 +1515,9 @@ Sophus::SE3f Tracking::GrabImageStereo(const cv::Mat &imRectLeft, const cv::Mat
+ 
+     //cout << "Tracking start" << endl;
+     Track();
++#ifdef REGISTER_TIMES
++    TimingLog::record("tracking/total_frame", mCurrentFrame.mnId, time_StartFrame, std::chrono::steady_clock::now());
++#endif
+     //cout << "Tracking end" << endl;
+ 
+     return mCurrentFrame.GetPose();
+@@ -1877,6 +1884,7 @@ void Tracking::Track()
+ 
+         double timePreImu = std::chrono::duration_cast<std::chrono::duration<double,std::milli> >(time_EndPreIMU - time_StartPreIMU).count();
+         vdIMUInteg_ms.push_back(timePreImu);
++        TimingLog::record("tracking/imu_preintegration", mCurrentFrame.mnId, time_StartPreIMU, time_EndPreIMU);
+ #endif
+ 
+     }
+@@ -2113,6 +2121,7 @@ void Tracking::Track()
+ 
+         double timePosePred = std::chrono::duration_cast<std::chrono::duration<double,std::milli> >(time_EndPosePred - time_StartPosePred).count();
+         vdPosePred_ms.push_back(timePosePred);
++        TimingLog::record("tracking/pose_prediction", mCurrentFrame.mnId, time_StartPosePred, time_EndPosePred);
+ #endif
+ 
+ 
+@@ -2195,6 +2204,7 @@ void Tracking::Track()
+ 
+         double timeLMTrack = std::chrono::duration_cast<std::chrono::duration<double,std::milli> >(time_EndLMTrack - time_StartLMTrack).count();
+         vdLMTrack_ms.push_back(timeLMTrack);
++        TimingLog::record("tracking/track_local_map", mCurrentFrame.mnId, time_StartLMTrack, time_EndLMTrack);
+ #endif
+ 
+         // Update drawer
+@@ -2254,6 +2264,7 @@ void Tracking::Track()
+ 
+             double timeNewKF = std::chrono::duration_cast<std::chrono::duration<double,std::milli> >(time_EndNewKF - time_StartNewKF).count();
+             vdNewKF_ms.push_back(timeNewKF);
++            TimingLog::record("tracking/keyframe_decision", mCurrentFrame.mnId, time_StartNewKF, time_EndNewKF);
+ #endif
+ 
+             // We allow points with high innovation (considererd outliers by the Huber Function)

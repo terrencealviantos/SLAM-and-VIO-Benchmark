@@ -1,0 +1,5 @@
+# Only the Dockerfile and kimera_benchmark.patch are needed to build the Kimera image;
+# keep the old 2020 ROS 2 wrapper workspace out of the build context.
+*
+!Dockerfile
+!kimera_benchmark.patch

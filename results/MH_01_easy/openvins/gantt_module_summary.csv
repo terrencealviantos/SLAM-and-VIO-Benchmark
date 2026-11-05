@@ -1,0 +1,9 @@
+module,count,mean_ms,median_ms,p95_ms,max_ms
+total_frame,3682,15.4139,16.6919,27.8915,65.2133
+feature_tracking,3682,4.8440,4.8998,6.6751,11.6563
+imu_propagation,2788,0.3350,0.2933,0.5243,2.7570
+msckf_update,2784,1.6270,0.2112,8.0359,30.6193
+slam_update,2784,6.7199,6.8377,9.5098,13.7169
+slam_delayed_init,2784,1.4491,0.3573,6.5823,22.4695
+retriangulation,2784,2.8394,2.6801,4.0118,6.0170
+marginalization,2784,0.3626,0.3143,0.6581,8.5094

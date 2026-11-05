@@ -1,0 +1,4 @@
+module,count,mean_ms,median_ms,p95_ms,max_ms
+VioFrontend,5919,17.5691,2.2735,84.7403,113.5575
+VioBackend,1382,23.3193,8.2458,69.8163,80.6856
+Mesher,1382,4.2248,2.1458,5.6099,68.4859

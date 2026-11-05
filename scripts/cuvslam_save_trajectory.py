@@ -29,8 +29,8 @@ class TrajectorySaver(Node):
         # to EuRoC sensor/body frame (R_flu_imu = [[0, 0, 1], [0, -1, 0], [1, 0, 0]])
         # q_off = [1/sqrt(2), 0, 1/sqrt(2), 0]
         # q_new = q_ori * q_off:
-        is_euroc = 'euroc' in self.output_file.lower() or 'mh_01' in self.output_file.lower() or \
-                   'euroc' in self.dataset.lower() or 'mh_01' in self.dataset.lower()
+        euroc_names = ('euroc', 'mh_01', 'v1_03')
+        is_euroc = any(n in self.output_file.lower() or n in self.dataset.lower() for n in euroc_names)
         if is_euroc:
             s = 0.7071067811865475
             qx = (ori.w + ori.y) * s

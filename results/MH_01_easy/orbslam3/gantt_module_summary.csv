@@ -1,0 +1,15 @@
+module,count,mean_ms,median_ms,p95_ms,max_ms
+tracking/total_frame,3682,40.7725,34.9541,76.1242,95.3570
+tracking/orb_extraction,3682,19.1646,14.2868,45.1710,70.1008
+tracking/stereo_matching,3682,5.3088,4.9856,6.2547,53.2914
+tracking/imu_preintegration,3682,0.1901,0.1276,0.3364,44.9216
+tracking/pose_prediction,3677,0.1072,0.0655,0.1466,35.8123
+tracking/track_local_map,3677,12.7131,10.6552,36.2196,58.5132
+tracking/keyframe_decision,3677,0.1809,0.1163,0.5128,34.2159
+local_mapping/total,496,281.0372,279.3736,455.1274,497.5854
+local_mapping/process_new_keyframe,496,9.5562,8.4084,15.3841,42.2794
+local_mapping/map_point_culling,496,0.3260,0.3154,0.5996,0.8827
+local_mapping/map_point_creation,496,24.9891,22.5773,48.7135,75.4274
+local_mapping/local_ba,494,223.2576,226.5247,358.1516,391.4456
+local_mapping/keyframe_culling,496,22.6140,16.1135,59.9997,82.6795
+loop_closing/place_recognition,494,7.4418,1.2057,36.6475,59.1279

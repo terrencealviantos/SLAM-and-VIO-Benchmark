@@ -11,11 +11,11 @@ and:	/repo/results/corridor/openvins/openvins_tum.txt
 --------------------------------------------------------------------------------
 Aligning using Umeyama's method...
 Rotation of alignment:
-[[-0.96390781 -0.19907128 -0.17678335]
- [-0.19646394  0.08373013  0.97692947]
- [-0.1796765   0.9764015  -0.11981845]]
+[[-0.9550571  -0.25413334 -0.15258503]
+ [-0.24685103  0.3968964   0.88404627]
+ [-0.16410519  0.88198044 -0.4417918 ]]
 Translation of alignment:
-[ 0.7986973  -0.48587097  0.9622874 ]
+[ 0.84579601 -0.60550363  1.04096783]
 Scale correction: 1.0
 --------------------------------------------------------------------------------
 Compared 912 absolute pose pairs.
@@ -24,13 +24,13 @@ Calculating APE for translation part pose relation...
 APE w.r.t. translation part (m)
 (with SE(3) Umeyama alignment)
 
-       max	2.073486
-      mean	0.412973
-    median	0.355899
-       min	0.031402
-      rmse	0.484652
-       sse	214.217209
-       std	0.253655
+       max	2.389506
+      mean	0.444667
+    median	0.366517
+       min	0.060148
+      rmse	0.529994
+       sse	256.174534
+       std	0.288382
 
 --------------------------------------------------------------------------------
 Saving results to /repo/results/corridor/openvins/openvins_ape.zip...

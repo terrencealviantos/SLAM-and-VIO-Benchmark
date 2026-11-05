@@ -1,0 +1,36 @@
+[93mInitialized new /root/.evo/settings.json[39m
+--------------------------------------------------------------------------------
+Loaded 4244 stamps and poses from: /repo/datasets/suedhoehe_gps_schnee_02/gps_trajectory.txt
+Loaded 1880 stamps and poses from: /repo/results/suedhoehe/orbslam3/orbslam3_tum.txt
+--------------------------------------------------------------------------------
+Synchronizing trajectories...
+Found 1880 of max. 1880 possible matching timestamps between...
+	/repo/datasets/suedhoehe_gps_schnee_02/gps_trajectory.txt
+and:	/repo/results/suedhoehe/orbslam3/orbslam3_tum.txt
+..with max. time diff.: 0.05 (s) and time offset: 0.0 (s).
+--------------------------------------------------------------------------------
+Aligning using Umeyama's method...
+Rotation of alignment:
+[[-0.78073541  0.41084214  0.47080883]
+ [ 0.40374595  0.90673768 -0.12172094]
+ [-0.4769082   0.09505531 -0.87379807]]
+Translation of alignment:
+[ -607.63846655  -300.26091065 -1024.78483419]
+Scale correction: 1.0
+--------------------------------------------------------------------------------
+Compared 1880 absolute pose pairs.
+Calculating APE for translation part pose relation...
+--------------------------------------------------------------------------------
+APE w.r.t. translation part (m)
+(with SE(3) Umeyama alignment)
+
+       max	6354.148771
+      mean	1753.551792
+    median	1335.286940
+       min	380.380505
+      rmse	2169.373526
+       sse	8847621212.829399
+       std	1277.199126
+
+--------------------------------------------------------------------------------
+Saving results to /repo/results/suedhoehe/orbslam3/orbslam3_ape.zip...

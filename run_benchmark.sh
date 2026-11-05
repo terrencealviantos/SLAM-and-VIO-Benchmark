@@ -16,8 +16,8 @@
 # Examples:
 #   ./run_benchmark.sh cuvslam suedhoehe --gui
 #   ./run_benchmark.sh openvins suedhoehe --gui
-#   ./run_benchmark.sh orbslam3 euroc --gui
-#   ./run_benchmark.sh orbslam3_klt euroc --gui
+#   ./run_benchmark.sh orbslam3 MH_01_easy --gui
+#   ./run_benchmark.sh orbslam3_klt MH_01_easy --gui
 #   ./run_benchmark.sh kimera suedhoehe --gui
 #   ./run_benchmark.sh all all
 #   ./run_benchmark.sh --evaluate
@@ -27,6 +27,8 @@ set -e
 
 REPO_ROOT="$(cd "$(dirname "$(realpath "${BASH_SOURCE[0]}")")" && pwd)"
 SCRIPTS_DIR="${REPO_ROOT}/scripts"
+# Latest official Kimera-VIO, built from workspace/kimera_ws/Dockerfile (MH_01_easy path)
+KIMERA_IMAGE="kimera-latest:ce8c59b"
 RVIZ_DIR="${SCRIPTS_DIR}/rviz"
 
 # ------------------------------------------------------------------------------
@@ -69,7 +71,7 @@ show_help() {
     echo ""
     echo "Supported Datasets:"
     echo "  suedhoehe      - Outdoor winter snow RealSense D435i dataset (GPS GT)"
-    echo "  euroc          - EuRoC MAV Machine Hall sequence MH_01_easy (Vicon GT)"
+    echo "  MH_01_easy     - EuRoC MAV Machine Hall sequence MH_01_easy (Vicon GT)"
     echo "  corridor       - TUM-VI indoor corridor sequence corridor1 (MoCap GT)"
     echo "  all            - Benchmark across all available datasets"
     echo ""
@@ -84,7 +86,7 @@ show_help() {
     echo "  ./run_benchmark.sh cuvslam suedhoehe --gui"
     echo "  ./run_benchmark.sh openvins corridor --gui"
     echo "  ./run_benchmark.sh kimera suedhoehe --gui"
-    echo "  ./run_benchmark.sh orbslam3_klt euroc --gui"
+    echo "  ./run_benchmark.sh orbslam3_klt MH_01_easy --gui"
     echo "  ./run_benchmark.sh all corridor"
     echo "  ./run_benchmark.sh all all"
     echo "  ./run_benchmark.sh --evaluate"
@@ -110,7 +112,7 @@ while [[ $# -gt 0 ]]; do
             fi
             shift
             ;;
-        suedhoehe|euroc|euroc_MH01|schnee|MH_01_easy|corridor|tum_vi|tumvi|corridor1)
+        suedhoehe|schnee|MH_01_easy|mh01|MH01|V1_03_difficult|v103|V103|corridor|tum_vi|tumvi|corridor1)
             DATASET="$1"
             shift
             ;;
@@ -164,8 +166,11 @@ case "$DATASET" in
     suedhoehe*|suehoehe*|suedhohe*|snow*|d435*|schnee*)
         DATASET="suedhoehe"
         ;;
-    euroc*|mh01*|MH01*|MH_01*)
-        DATASET="euroc"
+    mh01*|MH01*|MH_01*)
+        DATASET="MH_01_easy"
+        ;;
+    v1_03*|V1_03*|v103*|V103*)
+        DATASET="V1_03_difficult"
         ;;
     corridor*|tum_vi*|tumvi*)
         DATASET="corridor"
@@ -174,68 +179,55 @@ case "$DATASET" in
         DATASET="all"
         ;;
     *)
-        DATASET="euroc"
+        DATASET="MH_01_easy"
         ;;
 esac
 
 # Fallback defaults
 ALGORITHM="${ALGORITHM:-cuvslam}"
-DATASET="${DATASET:-euroc}"
+DATASET="${DATASET:-MH_01_easy}"
 
 # Allow X11 for Docker GUI
 xhost +local:root 2>/dev/null || xhost + 2>/dev/null || true
 
 # ------------------------------------------------------------------------------
-# Helper: Save algorithm-specific Gantt Chart to results folder
+# Helper: Gantt chart of this run, drawn from the run's own timing log
 # ------------------------------------------------------------------------------
+# scripts/plot_gantt.py reads the measured per-module start/end times the algorithm
+# wrote during this run (OpenVINS: ov_scoped_timing.csv). If a run has no such log,
+# no chart is produced -- a fixed image is never copied in its place.
 save_gantt_chart() {
     local algo="$1"
     local ds="$2"
 
-    if [ "$ds" = "euroc" ] || [ "$ds" = "euroc_MH01" ] || [ "$ds" = "MH_01_easy" ]; then
-        ds="euroc"
-    elif [ "$ds" = "corridor" ] || [ "$ds" = "tum_vi" ]; then
-        ds="corridor"
-    else
-        ds="suedhoehe"
-    fi
-
-    local dest_dir="${REPO_ROOT}/results/${ds}/${algo}"
-    mkdir -p "$dest_dir"
-
-    local src_chart=""
-    case "$algo" in
-        openvins)     src_chart="${REPO_ROOT}/figures/1_openvins_gantt_chart.png" ;;
-        kimera)       src_chart="${REPO_ROOT}/figures/2_kimera_gantt_chart.png" ;;
-        orbslam3)     src_chart="${REPO_ROOT}/figures/3_orbslam3_gantt_chart.png" ;;
-        orbslam3_klt) src_chart="${REPO_ROOT}/figures/5_orbslam3_klt_gantt_chart.png" ;;
-        cuvslam*)     src_chart="${REPO_ROOT}/figures/4_cuvslam_gantt_chart.png" ;;
+    case "$ds" in
+        corridor|tum_vi|tumvi|corridor1)          ds="corridor" ;;
+        suedhoehe|schnee|snow|suedhoehe_gps_schnee_02) ds="suedhoehe" ;;
     esac
 
-    if [ ! -f "$src_chart" ]; then
-        case "$algo" in
-            openvins)     src_chart="${REPO_ROOT}/gantt_charts/1_openvins_gantt_chart.png" ;;
-            kimera)       src_chart="${REPO_ROOT}/gantt_charts/2_kimera_gantt_chart.png" ;;
-            orbslam3)     src_chart="${REPO_ROOT}/gantt_charts/3_orbslam3_gantt_chart.png" ;;
-            orbslam3_klt) src_chart="${REPO_ROOT}/gantt_charts/5_orbslam3_klt_gantt_chart.png" ;;
-            cuvslam*)     src_chart="${REPO_ROOT}/gantt_charts/4_cuvslam_gantt_chart.png" ;;
-        esac
+    local dest_dir="${REPO_ROOT}/results/${ds}/${algo}"
+    if [ ! -d "$dest_dir" ]; then
+        echo "[WARN] ${dest_dir} does not exist; no Gantt chart generated."
+        return 0
     fi
 
-    if [ ! -f "$src_chart" ]; then
-        python3 "${REPO_ROOT}/scripts/generate_publication_plots.py" 2>/dev/null || true
-    fi
-
-    if [ -f "$src_chart" ]; then
-        cp -f "$src_chart" "${dest_dir}/gantt_chart.png"
-        echo "[✔] Gantt chart saved: ${dest_dir}/gantt_chart.png"
-    fi
+    docker run --rm --entrypoint "" --user "$(id -u):$(id -g)" -e HOME=/tmp \
+      -v "${dest_dir}":/run_dir \
+      -v "${SCRIPTS_DIR}":/scripts:ro \
+      -v "${REPO_ROOT}/workspace/.python_deps":/deps:ro \
+      slam-base:latest \
+      bash -c "PYTHONPATH=/deps python3 /scripts/plot_gantt.py /run_dir ${algo} --dataset ${ds}" \
+      || echo "[WARN] Gantt chart generation failed for ${algo} on ${ds}."
 }
 
 # ------------------------------------------------------------------------------
 # 1. RUN CUVSLAM (NVIDIA Isaac ROS GPU-Accelerated)
 # ------------------------------------------------------------------------------
 run_cuvslam() {
+    # Official NVIDIA Isaac ROS Visual SLAM 3.1.0 (apt package in slam-base, /opt/ros/humble).
+    # Only the launch files (TFs, camera_info/IMU relays) come from the workspace; the modified
+    # build in workspace/isaac_ros_ws/install is not used.
+    local launch_dir="/workspaces/isaac_ros-dev/src/isaac_ros_visual_slam/isaac_ros_visual_slam/launch"
     local target_dataset="$1"
     local target_algo="${2:-cuvslam}"
     local results_dir="${REPO_ROOT}/results"
@@ -245,8 +237,8 @@ run_cuvslam() {
     local launch_file=""
 
     case "$target_dataset" in
-        euroc|euroc_MH01|MH_01_easy)
-            results_dir="${results_dir}/euroc/${target_algo}"
+        MH_01_easy)
+            results_dir="${results_dir}/MH_01_easy/${target_algo}"
             launch_file="isaac_ros_visual_slam_euroc.launch.py"
             rviz_cfg="/rviz_cfg/euroc_rviz.rviz"
             if [ -d "${bag_dir}/MH_01_easy/MH_01_easy_ros2" ]; then
@@ -254,6 +246,13 @@ run_cuvslam() {
             else
                 bag_name="MH_01_easy"
             fi
+            ;;
+        V1_03_difficult)
+            # Same EuRoC sensor rig and calibration as MH_01_easy, so the same launch file.
+            results_dir="${results_dir}/V1_03_difficult/${target_algo}"
+            launch_file="isaac_ros_visual_slam_euroc.launch.py"
+            rviz_cfg="/rviz_cfg/euroc_rviz.rviz"
+            bag_name="V1_03_difficult/V1_03_difficult_ros2"
             ;;
         suedhoehe|schnee|snow|suedhoehe_gps_schnee_02)
             results_dir="${results_dir}/suedhoehe/${target_algo}"
@@ -272,7 +271,7 @@ run_cuvslam() {
             bag_name="tum_vi_corridor1/corridor1_ros2"
             ;;
         *)
-            echo "[ERROR] Unknown dataset for cuVSLAM: '$target_dataset'. Supported: 'euroc', 'suedhoehe', 'corridor'."
+            echo "[ERROR] Unknown dataset for cuVSLAM: '$target_dataset'. Supported: 'MH_01_easy', 'V1_03_difficult', 'suedhoehe', 'corridor'."
             exit 1
             ;;
     esac
@@ -297,15 +296,13 @@ run_cuvslam() {
             --runtime=nvidia --gpus all \
             --cpus=${CPUS} --memory=${MEMORY} \
             --net=host --ipc=host \
-            -v '${REPO_ROOT}/workspace/isaac_ros_ws':/workspaces/isaac_ros-dev \
+            -v '${REPO_ROOT}/workspace/isaac_ros_ws':/workspaces/isaac_ros-dev:ro \
             -v '${results_dir}':/results \
             -v '${SCRIPTS_DIR}':/scripts \
             slam-base:latest \
-            bash -c 'export LD_LIBRARY_PATH=/workspaces/isaac_ros-dev/install/isaac_ros_visual_slam/share/cuvslam/lib:\$LD_LIBRARY_PATH && \
-                     source /opt/ros/humble/setup.bash && \
-                     source /workspaces/isaac_ros-dev/install/setup.bash && \
+            bash -c 'source /opt/ros/humble/setup.bash && \
                      (python3 /scripts/cuvslam_save_trajectory.py /results/cuvslam_tum.txt ${target_dataset} &) && \
-                     ros2 launch isaac_ros_visual_slam ${launch_file}'"
+                     ros2 launch ${launch_dir}/${launch_file}'"
 
         sleep 4
 
@@ -342,16 +339,20 @@ run_cuvslam() {
           --runtime=nvidia --gpus all \
           --cpus="${CPUS}" --memory="${MEMORY}" \
           --net=host --ipc=host \
-          -v "${REPO_ROOT}/workspace/isaac_ros_ws":/workspaces/isaac_ros-dev \
+          -v "${REPO_ROOT}/workspace/isaac_ros_ws":/workspaces/isaac_ros-dev:ro \
           -v "${results_dir}":/results \
           -v "${SCRIPTS_DIR}":/scripts \
           slam-base:latest \
-          bash -c "export LD_LIBRARY_PATH=/workspaces/isaac_ros-dev/install/isaac_ros_visual_slam/share/cuvslam/lib:\$LD_LIBRARY_PATH && \
-                   source /opt/ros/humble/setup.bash && \
-                   source /workspaces/isaac_ros-dev/install/setup.bash && \
-                   ros2 launch isaac_ros_visual_slam ${launch_file}"
+          bash -c "source /opt/ros/humble/setup.bash && \
+                   ros2 launch ${launch_dir}/${launch_file}"
 
-        sleep 4
+        # Wait until the cuVSLAM node has started (instead of a fixed sleep), so the first
+        # images of the bag are not lost while the GPU/NITROS initialise.
+        for _ in $(seq 1 60); do
+            docker logs cuvslam_node 2>&1 | grep -q "Loaded node '/visual_slam_node'" && break
+            sleep 1
+        done
+        sleep 2
         docker exec -d cuvslam_node bash -c "source /opt/ros/humble/setup.bash && python3 /scripts/cuvslam_save_trajectory.py /results/cuvslam_tum.txt ${target_dataset}"
         sleep 1
 
@@ -375,16 +376,16 @@ run_cuvslam() {
 # ------------------------------------------------------------------------------
 run_openvins() {
     local target_dataset="$1"
-    local results_dir="${REPO_ROOT}/results/suedhoehe/openvins"
+    local results_dir="${REPO_ROOT}/results"
     local catkin_ws="${REPO_ROOT}/workspace/catkin_ws_ov"
     local bag_dir="${REPO_ROOT}/datasets"
-    local bag_name="suedhoehe_gps_schnee_02"
+    local bag_name=""
     local config_path="/catkin_ws/src/open_vins/config/suedhoehe/estimator_config.yaml"
     local rviz_cfg="/rviz_cfg/openvins_rviz.rviz"
 
     local ros_args="--ros-args -p save_total_state:=true -p filepath_est:=/results/ov_estimate.txt -p filepath_std:=/results/ov_estimate_std.txt"
-    if [ "$target_dataset" = "euroc" ] || [ "$target_dataset" = "euroc_MH01" ] || [ "$target_dataset" = "MH_01_easy" ]; then
-        results_dir="${REPO_ROOT}/results/euroc/openvins"
+    if [ "$target_dataset" = "MH_01_easy" ]; then
+        results_dir="${results_dir}/MH_01_easy/openvins"
         config_path="/catkin_ws/src/open_vins/config/euroc_mav/estimator_config.yaml"
         if [ -d "${bag_dir}/MH_01_easy/MH_01_easy_ros2" ]; then
             bag_name="MH_01_easy/MH_01_easy_ros2"
@@ -396,25 +397,30 @@ run_openvins() {
             ros_args="${ros_args} -p path_gt:=/dataset_dir/MH_01_easy/mav0/state_groundtruth_estimate0/data.csv"
         fi
     elif [ "$target_dataset" = "V1_03_difficult" ]; then
-        results_dir="${REPO_ROOT}/results/euroc/V1_03_difficult/openvins"
+        results_dir="${results_dir}/V1_03_difficult/openvins"
         config_path="/catkin_ws/src/open_vins/config/euroc_mav/estimator_config.yaml"
-        bag_name="V1_03_difficult"
+        bag_name="V1_03_difficult/V1_03_difficult_ros2"
         rviz_cfg="/rviz_cfg/openvins_rviz.rviz"
         if [ -f "${bag_dir}/V1_03_difficult/mav0/state_groundtruth_estimate0/data.csv" ]; then
             ros_args="${ros_args} -p path_gt:=/dataset_dir/V1_03_difficult/mav0/state_groundtruth_estimate0/data.csv"
         fi
     elif [ "$target_dataset" = "corridor" ] || [ "$target_dataset" = "tum_vi" ] || [ "$target_dataset" = "corridor1" ]; then
-        results_dir="${REPO_ROOT}/results/corridor/openvins"
+        results_dir="${results_dir}/corridor/openvins"
         config_path="/catkin_ws/src/open_vins/config/tum_vi/estimator_config.yaml"
         bag_name="tum_vi_corridor1/corridor1_ros2"
         rviz_cfg="/rviz_cfg/openvins_rviz.rviz"
         if [ -f "${bag_dir}/tum_vi_corridor1_asl/gt_tum.txt" ]; then
             ros_args="${ros_args} -p path_gt:=/dataset_dir/tum_vi_corridor1_asl/gt_tum.txt"
         fi
-    else
+    elif [ "$target_dataset" = "suedhoehe" ] || [ "$target_dataset" = "schnee" ] || [ "$target_dataset" = "snow" ] || [ "$target_dataset" = "suedhoehe_gps_schnee_02" ]; then
+        results_dir="${results_dir}/suedhoehe/openvins"
+        bag_name="suedhoehe_gps_schnee_02"
         if [ -f "${bag_dir}/suedhoehe_gps_schnee_02/suedhoehe_gt_asl.csv" ]; then
             ros_args="${ros_args} -p path_gt:=/dataset_dir/suedhoehe_gps_schnee_02/suedhoehe_gt_asl.csv"
         fi
+    else
+        echo "[ERROR] Unknown dataset for OpenVINS: '$target_dataset'. Supported: 'MH_01_easy', 'V1_03_difficult', 'corridor', 'suedhoehe'."
+        exit 1
     fi
 
     mkdir -p "$results_dir"
@@ -515,6 +521,9 @@ run_orbslam3_variant() {
     local title="ORB-SLAM3 Baseline"
 
     local docker_image="orbslam3:latest"
+    # Baseline runs the instrumented ORB-SLAM3 source from the workspace (per-module timing
+    # with timestamps, see include/ScopedTiming.h), mounted over the image's /opt/ORB_SLAM3.
+    local src_mount="-v ${REPO_ROOT}/workspace/orbslam3_ws/ORB_SLAM3:/opt/ORB_SLAM3"
     local bin_cmd="/opt/ORB_SLAM3/Examples/Stereo-Inertial/stereo_inertial_euroc /opt/ORB_SLAM3/Vocabulary/ORBvoc.txt ${config_yaml} /dataset /dataset/timestamps.txt ${algo_sub}"
 
     if [ "$variant" = "klt" ]; then
@@ -523,16 +532,26 @@ run_orbslam3_variant() {
         out_name="orbslam3_klt_tum.txt"
         title="ORB-SLAM3 Hybrid KLT"
         docker_image="orbslam3_klt:latest"
+        src_mount=""
         bin_cmd="/opt/ORB_SLAM3_KLT/Examples/Monocular/mono_euroc /opt/ORB_SLAM3_KLT/Vocabulary/ORBvoc.txt /opt/ORB_SLAM3_KLT/Examples/Monocular/EuRoC.yaml /dataset /dataset/timestamps.txt ${algo_sub}"
     fi
 
-    local ds_dir="euroc"
-    local results_dir="${REPO_ROOT}/results/euroc/${algo_sub}"
+    local ds_dir="MH_01_easy"
+    local results_dir="${REPO_ROOT}/results"
     local dataset_path="${REPO_ROOT}/datasets/MH_01_easy"
 
-    if [ "$target_dataset" = "suedhoehe" ] || [ "$target_dataset" = "schnee" ]; then
+    if [ "$target_dataset" = "MH_01_easy" ]; then
+        ds_dir="MH_01_easy"
+        results_dir="${results_dir}/MH_01_easy/${algo_sub}"
+        dataset_path="${REPO_ROOT}/datasets/MH_01_easy"
+    elif [ "$target_dataset" = "V1_03_difficult" ]; then
+        # Same EuRoC sensor rig and calibration as MH_01_easy, so the same EuRoC config.
+        ds_dir="V1_03_difficult"
+        results_dir="${results_dir}/V1_03_difficult/${algo_sub}"
+        dataset_path="${REPO_ROOT}/datasets/V1_03_difficult"
+    elif [ "$target_dataset" = "suedhoehe" ] || [ "$target_dataset" = "schnee" ]; then
         ds_dir="suedhoehe"
-        results_dir="${REPO_ROOT}/results/suedhoehe/${algo_sub}"
+        results_dir="${results_dir}/suedhoehe/${algo_sub}"
         dataset_path="${REPO_ROOT}/datasets/suedhoehe_asl"
         config_yaml="/orbslam3_ws/suedhoehe_stereo_inertial.yaml"
         bin_cmd="/opt/ORB_SLAM3/Examples/Stereo-Inertial/stereo_inertial_euroc /opt/ORB_SLAM3/Vocabulary/ORBvoc.txt ${config_yaml} /dataset /dataset/timestamps.txt ${algo_sub}"
@@ -546,7 +565,7 @@ run_orbslam3_variant() {
         echo "=========================================================="
     elif [ "$target_dataset" = "corridor" ] || [ "$target_dataset" = "tum_vi" ] || [ "$target_dataset" = "corridor1" ]; then
         ds_dir="corridor"
-        results_dir="${REPO_ROOT}/results/corridor/${algo_sub}"
+        results_dir="${results_dir}/corridor/${algo_sub}"
         dataset_path="${REPO_ROOT}/datasets/tum_vi_corridor1"
         config_yaml="/orbslam3_ws/tum_vi_stereo_inertial.yaml"
         bin_cmd="/opt/ORB_SLAM3/Examples/Stereo-Inertial/stereo_inertial_euroc /opt/ORB_SLAM3/Vocabulary/ORBvoc.txt ${config_yaml} /dataset /dataset/timestamps.txt ${algo_sub}"
@@ -558,6 +577,9 @@ run_orbslam3_variant() {
         echo " [$title] Dataset: corridor (TUM-VI Corridor 1 Sequence)"
         echo " [NOTE] Running ORB-SLAM3 on TUM-VI Corridor dataset..."
         echo "=========================================================="
+    else
+        echo "[ERROR] Unknown dataset for ${title}: '$target_dataset'. Supported: 'MH_01_easy', 'V1_03_difficult', 'corridor', 'suedhoehe'."
+        exit 1
     fi
 
     mkdir -p "$results_dir"
@@ -574,7 +596,7 @@ run_orbslam3_variant() {
             --cpus=${CPUS} --memory=${MEMORY} \
             --net=host --ipc=host \
             -e DISPLAY=${DISPLAY} -e QT_X11_NO_MITSHM=1 -v /tmp/.X11-unix:/tmp/.X11-unix \
-            -v '${REPO_ROOT}/workspace/orbslam3_ws':/orbslam3_ws \
+            -v '${REPO_ROOT}/workspace/orbslam3_ws':/orbslam3_ws ${src_mount} \
             -v '${dataset_path}':/dataset \
             -v '${results_dir}':/results \
             ${docker_image} \
@@ -589,7 +611,7 @@ run_orbslam3_variant() {
     else
         docker run --rm --entrypoint "" \
           --cpus="${CPUS}" --memory="${MEMORY}" \
-          -v "${REPO_ROOT}/workspace/orbslam3_ws":/orbslam3_ws \
+          -v "${REPO_ROOT}/workspace/orbslam3_ws":/orbslam3_ws ${src_mount} \
           -v "${dataset_path}":/dataset \
           -v "${results_dir}":/results \
           ${docker_image} \
@@ -624,17 +646,17 @@ with open('${results_dir}/f_${algo_sub}.txt') as fin, open('${results_dir}/${out
 # ------------------------------------------------------------------------------
 run_kimera() {
     local target_dataset="$1"
-    local results_dir="${REPO_ROOT}/results/suedhoehe/kimera"
+    local results_dir="${REPO_ROOT}/results"
     local params_path="${REPO_ROOT}/suedhoehe_kimera_params"
     local bag_dir="${REPO_ROOT}/datasets"
-    local bag_name="suedhoehe_gps_schnee_02"
+    local bag_name=""
     local left_topic="/camera/infra1/image_rect_raw"
     local right_topic="/camera/infra2/image_rect_raw"
     local imu_topic="/camera/imu"
     local rviz_cfg="/rviz_cfg/suedhoehe_rviz.rviz"
 
-    if [ "$target_dataset" = "euroc" ] || [ "$target_dataset" = "euroc_MH01" ] || [ "$target_dataset" = "MH_01_easy" ]; then
-        results_dir="${REPO_ROOT}/results/euroc/kimera"
+    if [ "$target_dataset" = "MH_01_easy" ]; then
+        results_dir="${results_dir}/MH_01_easy/kimera"
         params_path="${REPO_ROOT}/euroc_kimera_params"
         if [ -d "${bag_dir}/MH_01_easy/MH_01_easy_ros2" ]; then
             bag_name="MH_01_easy/MH_01_easy_ros2"
@@ -645,14 +667,24 @@ run_kimera() {
         right_topic="/cam1/image_raw"
         imu_topic="/imu0"
         rviz_cfg="/rviz_cfg/euroc_rviz.rviz"
+    elif [ "$target_dataset" = "V1_03_difficult" ]; then
+        # Same EuRoC sensor rig and calibration as MH_01_easy, so the same params folder.
+        results_dir="${results_dir}/V1_03_difficult/kimera"
+        params_path="${REPO_ROOT}/euroc_kimera_params"
     elif [ "$target_dataset" = "corridor" ] || [ "$target_dataset" = "tum_vi" ] || [ "$target_dataset" = "corridor1" ]; then
-        results_dir="${REPO_ROOT}/results/corridor/kimera"
+        results_dir="${results_dir}/corridor/kimera"
         params_path="${REPO_ROOT}/corridor_kimera_params"
         bag_name="tum_vi_corridor1/corridor1_ros2"
         left_topic="/cam0/image_raw"
         right_topic="/cam1/image_raw"
         imu_topic="/imu0"
         rviz_cfg="/rviz_cfg/openvins_rviz.rviz"
+    elif [ "$target_dataset" = "suedhoehe" ] || [ "$target_dataset" = "schnee" ] || [ "$target_dataset" = "snow" ] || [ "$target_dataset" = "suedhoehe_gps_schnee_02" ]; then
+        results_dir="${results_dir}/suedhoehe/kimera"
+        bag_name="suedhoehe_gps_schnee_02"
+    else
+        echo "[ERROR] Unknown dataset for Kimera-VIO: '$target_dataset'. Supported: 'MH_01_easy', 'V1_03_difficult', 'corridor', 'suedhoehe'."
+        exit 1
     fi
 
     mkdir -p "$results_dir"
@@ -665,37 +697,59 @@ run_kimera() {
     docker kill kimera_node kimera_rviz kimera_player 2>/dev/null || true
     docker rm -f kimera_node kimera_rviz kimera_player 2>/dev/null || true
 
-    if [ "$target_dataset" = "euroc" ] || [ "$target_dataset" = "euroc_MH01" ] || [ "$target_dataset" = "MH_01_easy" ]; then
-        echo "[*] Running Kimera-VIO on EuRoC MH_01_easy..."
+    if [ "$target_dataset" = "MH_01_easy" ] || [ "$target_dataset" = "V1_03_difficult" ] || [ "$target_dataset" = "corridor" ] || [ "$target_dataset" = "tum_vi" ] || [ "$target_dataset" = "corridor1" ]; then
+        # Latest official Kimera-VIO (workspace/kimera_ws/Dockerfile), offline EuRoC-format reader,
+        # started like upstream scripts/stereoVIOEuroc.bash: one params folder + flag files.
+        # The settings after the flag files only switch off GUI/image output for headless runs.
+        # initial_k: Kimera's IMU initialisation (autoInitialize: 1) assumes the platform is at
+        # rest, so each dataset starts in its stillest window:
+        #   MH_01_easy:      frame 460 (t~23 s), stationary from ~22 s to ~44 s (take-off)
+        #   V1_03_difficult: frame 20 (t~1 s), stationary only for the first ~3 s
+        #   corridor:        frame 70 (t~3.5 s), quietest window of the handheld sequence
+        local kimera_root="/opt/kimera/Kimera-VIO"
+        local asl_dir="${REPO_ROOT}/datasets/MH_01_easy"
+        local initial_k=460
+        if [ "$target_dataset" = "V1_03_difficult" ]; then
+            asl_dir="${REPO_ROOT}/datasets/V1_03_difficult"
+            initial_k=20
+        elif [ "$target_dataset" != "MH_01_easy" ]; then
+            asl_dir="${REPO_ROOT}/datasets/tum_vi_corridor1"
+            initial_k=70
+        fi
+        echo "[*] Running Kimera-VIO (latest, ${KIMERA_IMAGE}) on ${target_dataset}..."
         docker run --rm \
           --cpus="${CPUS}" --memory="${MEMORY}" \
-          -v "${REPO_ROOT}/datasets/MH_01_easy":/euroc_data \
+          --user "$(id -u):$(id -g)" -e HOME=/tmp \
+          -e KIMERA_TIMING_CSV=/output/kimera_scoped_timing.csv \
+          -w /output \
+          -v "${asl_dir}":/dataset:ro \
           -v "${results_dir}":/output \
-          -v "${params_path}":/euroc_kimera_params \
-          kimera:latest \
-          bash -c "/opt/overlay_ws/build/kimera_vio/stereoVIOEuroc \
+          -v "${params_path}":/params:ro \
+          "${KIMERA_IMAGE}" \
+          ${kimera_root}/build/stereoVIOEuroc \
             --dataset_type=0 \
-            --dataset_path=/euroc_data \
-            --initial_k=50 \
-            --final_k=3680 \
-            --backend_type=0 \
-            --left_cam_params_path=/opt/overlay_ws/src/MIT-SPARK/Kimera-VIO/params/Euroc/LeftCameraParams.yaml \
-            --right_cam_params_path=/opt/overlay_ws/src/MIT-SPARK/Kimera-VIO/params/Euroc/RightCameraParams.yaml \
-            --imu_params_path=/opt/overlay_ws/src/MIT-SPARK/Kimera-VIO/params/Euroc/ImuParams.yaml \
-            --backend_params_path=/opt/overlay_ws/src/MIT-SPARK/Kimera-VIO/params/Euroc/regularVioParameters.yaml \
-            --frontend_params_path=/euroc_kimera_params/trackerParameters.yaml \
-            --vocabulary_path=/opt/overlay_ws/src/MIT-SPARK/Kimera-VIO/vocabulary/ORBvoc.yml \
-            --visualize=false \
-            --visualize_mesh=false \
-            --visualize_point_cloud=false \
-            --viz_type=0 \
+            --dataset_path=/dataset \
+            --initial_k=${initial_k} \
+            --final_k=100000 \
+            --params_folder_path=/params \
             --use_lcd=0 \
-            --parallel_run=0 \
+            --vocabulary_path=${kimera_root}/vocabulary/ORBvoc.yml \
+            --flagfile=/params/flags/stereoVIOEuroc.flags \
+            --flagfile=/params/flags/Mesher.flags \
+            --flagfile=/params/flags/VioBackend.flags \
+            --flagfile=/params/flags/RegularVioBackend.flags \
+            --flagfile=/params/flags/Visualizer3D.flags \
+            --visualize=false \
+            --save_frontend_images=false \
+            --visualize_frontend_images=false \
             --logtostderr=1 \
-            --colorlogtostderr=1 \
+            --colorlogtostderr=0 \
             --log_prefix=1 \
-            --log_output=1 \
-            --output_path=/output/"
+            --v=0 \
+            --log_output=true \
+            --log_euroc_gt_data=false \
+            --output_path=/output/ \
+          > "${results_dir}/run.log" 2>&1 || echo "[WARN] Kimera-VIO exited with an error, see ${results_dir}/run.log"
     else
         if [ "$ENABLE_GUI" = true ]; then
             launch_terminal "[1] Kimera-VIO Node" \
@@ -757,8 +811,14 @@ run_kimera() {
               -v "${results_dir}":/output \
               -v "${params_path}":/params \
               -v "${SCRIPTS_DIR}":/scripts \
+              -v "${REPO_ROOT}/workspace/isaac_ros_ws":/workspaces/isaac_ros-dev \
               kimera:latest \
               bash -c "source /opt/wrapper_ws/install/setup.bash && \
+                       if [ '$target_dataset' = 'corridor' ] || [ '$target_dataset' = 'tum_vi' ] || [ '$target_dataset' = 'corridor1' ]; then \
+                           (python3 /workspaces/isaac_ros-dev/corridor_camera_info_pub.py &) && sleep 2 && \
+                           left_topic='/corridor/cam0/image_mono8' && \
+                           right_topic='/corridor/cam1/image_mono8'; \
+                       fi && \
                        ros2 launch kimera_vio_ros kimera_vio_ros.launch.xml \
                          params_folder:=/params \
                          parallel:=false \
@@ -769,8 +829,8 @@ run_kimera() {
                          backend_type:=0 \
                          log_output:=true \
                          log_output_path:=/output/ \
-                         cam_topic.left:=${left_topic} \
-                         cam_topic.right:=${right_topic} \
+                         cam_topic.left:=\${left_topic} \
+                         cam_topic.right:=\${right_topic} \
                          imu_topic:=${imu_topic}"
 
             sleep 5
@@ -857,16 +917,16 @@ case "$ALGORITHM" in
             save_gantt_chart "orbslam3_klt" "corridor"
         elif [ "$DATASET" = "all" ]; then
             echo "[*] Target: Complete Suite (EuRoC + Suedhoehe + Corridor)"
-            run_cuvslam "euroc"
-            run_openvins "euroc"
-            run_kimera "euroc"
-            run_orbslam3_variant "baseline" "euroc"
-            run_orbslam3_variant "klt" "euroc"
-            save_gantt_chart "cuvslam" "euroc"
-            save_gantt_chart "openvins" "euroc"
-            save_gantt_chart "kimera" "euroc"
-            save_gantt_chart "orbslam3" "euroc"
-            save_gantt_chart "orbslam3_klt" "euroc"
+            run_cuvslam "MH_01_easy"
+            run_openvins "MH_01_easy"
+            run_kimera "MH_01_easy"
+            run_orbslam3_variant "baseline" "MH_01_easy"
+            run_orbslam3_variant "klt" "MH_01_easy"
+            save_gantt_chart "cuvslam" "MH_01_easy"
+            save_gantt_chart "openvins" "MH_01_easy"
+            save_gantt_chart "kimera" "MH_01_easy"
+            save_gantt_chart "orbslam3" "MH_01_easy"
+            save_gantt_chart "orbslam3_klt" "MH_01_easy"
 
             run_cuvslam "suedhoehe"
             run_openvins "suedhoehe"
@@ -891,16 +951,16 @@ case "$ALGORITHM" in
             save_gantt_chart "orbslam3_klt" "corridor"
         else
             echo "[*] Target: EuRoC MH_01_easy 5-Way Benchmark (All 5 Algorithms)"
-            run_cuvslam "euroc"
-            run_openvins "euroc"
-            run_kimera "euroc"
-            run_orbslam3_variant "baseline" "euroc"
-            run_orbslam3_variant "klt" "euroc"
-            save_gantt_chart "cuvslam" "euroc"
-            save_gantt_chart "openvins" "euroc"
-            save_gantt_chart "kimera" "euroc"
-            save_gantt_chart "orbslam3" "euroc"
-            save_gantt_chart "orbslam3_klt" "euroc"
+            run_cuvslam "MH_01_easy"
+            run_openvins "MH_01_easy"
+            run_kimera "MH_01_easy"
+            run_orbslam3_variant "baseline" "MH_01_easy"
+            run_orbslam3_variant "klt" "MH_01_easy"
+            save_gantt_chart "cuvslam" "MH_01_easy"
+            save_gantt_chart "openvins" "MH_01_easy"
+            save_gantt_chart "kimera" "MH_01_easy"
+            save_gantt_chart "orbslam3" "MH_01_easy"
+            save_gantt_chart "orbslam3_klt" "MH_01_easy"
         fi
         echo "[✔] All benchmark runs complete!"
         ;;

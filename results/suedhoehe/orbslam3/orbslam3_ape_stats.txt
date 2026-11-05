@@ -1,36 +1,36 @@
 [93mInitialized new /root/.evo/settings.json[39m
 --------------------------------------------------------------------------------
-Loaded 4244 stamps and poses from: /repo/datasets/suedhoehe_gps_schnee_02/gps_trajectory.txt
-Loaded 1880 stamps and poses from: /repo/results/suedhoehe/orbslam3/orbslam3_tum.txt
+Loaded 1173 stamps and poses from: /repo/datasets/suedhoehe_gps_schnee_02/gt_gnss_tum.txt
+Loaded 685 stamps and poses from: /repo/results/suedhoehe/orbslam3/orbslam3_tum.txt
 --------------------------------------------------------------------------------
 Synchronizing trajectories...
-Found 1880 of max. 1880 possible matching timestamps between...
-	/repo/datasets/suedhoehe_gps_schnee_02/gps_trajectory.txt
+Found 665 of max. 685 possible matching timestamps between...
+	/repo/datasets/suedhoehe_gps_schnee_02/gt_gnss_tum.txt
 and:	/repo/results/suedhoehe/orbslam3/orbslam3_tum.txt
 ..with max. time diff.: 0.05 (s) and time offset: 0.0 (s).
 --------------------------------------------------------------------------------
 Aligning using Umeyama's method...
 Rotation of alignment:
-[[-0.78073541  0.41084214  0.47080883]
- [ 0.40374595  0.90673768 -0.12172094]
- [-0.4769082   0.09505531 -0.87379807]]
+[[-0.77017935  0.17998172 -0.61190714]
+ [ 0.10008131 -0.91337703 -0.39462152]
+ [-0.62992658 -0.36516981  0.68545132]]
 Translation of alignment:
-[ -607.63846655  -300.26091065 -1024.78483419]
+[22.8306993  24.20216128 -1.84870871]
 Scale correction: 1.0
 --------------------------------------------------------------------------------
-Compared 1880 absolute pose pairs.
+Compared 665 absolute pose pairs.
 Calculating APE for translation part pose relation...
 --------------------------------------------------------------------------------
 APE w.r.t. translation part (m)
 (with SE(3) Umeyama alignment)
 
-       max	6354.148771
-      mean	1753.551792
-    median	1335.286940
-       min	380.380505
-      rmse	2169.373526
-       sse	8847621212.829399
-       std	1277.199126
+       max	49.082337
+      mean	22.764683
+    median	20.482505
+       min	6.437368
+      rmse	24.529407
+       sse	400125.067424
+       std	9.135701
 
 --------------------------------------------------------------------------------
 Saving results to /repo/results/suedhoehe/orbslam3/orbslam3_ape.zip...

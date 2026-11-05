@@ -1,81 +1,67 @@
 %YAML:1.0
 
 #--------------------------------------------------------------------------------------------
-# Camera Parameters. RealSense D435i Stereo on Suedhoehe Dataset
+# Suedhoehe snow sequence: Intel RealSense D435i, infra1/infra2 at 848x480, 30 Hz, IMU 200 Hz.
+#
+# No calibration was recorded with this bag (no camera_info topic). Values below:
+#  - Camera model "Rectified": /camera/infra*/image_rect_raw are already rectified by the
+#    camera firmware, so no distortion is applied (as in ORB-SLAM3's RealSense_D435i.yaml).
+#  - Stereo.b: D435i baseline from ORB-SLAM3's official RealSense_D435i.yaml (0.0499585 m).
+#  - fx = fy = 421.35: measured from this bag. The RealSense depth image is computed with the
+#    factory calibration, so depth * disparity(infra1, infra2) = fx * b. Median over 10 frames
+#    across the run: fx * b = 21.05 px*m  ->  fx = 21.05 / 0.0499585 = 421.35 px.
+#    (Cross-check: ORB-SLAM3's 640x480 value 382.6 px scaled to the 848x480 mode ~ 422 px.)
+#  - cx, cy: image centre (nominal; not measurable from the bag).
+#  - IMU.T_b_c1, IMU noise, IMU.Frequency: ORB-SLAM3's official RealSense_D435i.yaml. The
+#    bag's IMU is in camera_imu_optical_frame, whose axes are aligned with the infra1 optical
+#    frame, so the rotation is identity.
 #--------------------------------------------------------------------------------------------
 File.version: "1.0"
 
-Camera.type: "PinHole"
+Camera.type: "Rectified"
 
-# Left Camera calibration and distortion parameters (OpenCV)
-Camera1.fx: 416.852234
-Camera1.fy: 414.920690
-Camera1.cx: 421.024593
-Camera1.cy: 237.761805
+Camera1.fx: 421.35
+Camera1.fy: 421.35
+Camera1.cx: 424.0
+Camera1.cy: 240.0
 
-# Distortion parameters (radtan)
-Camera1.k1: -0.045761895
-Camera1.k2: 0.034239511
-Camera1.p1: -0.00040139
-Camera1.p2: 0.00043137
+Stereo.b: 0.0499585
 
-# Right Camera calibration and distortion parameters (OpenCV)
-Camera2.fx: 416.852234
-Camera2.fy: 414.920690
-Camera2.cx: 421.024593
-Camera2.cy: 237.761805
-
-# Distortion parameters
-Camera2.k1: -0.045761895
-Camera2.k2: 0.034239511
-Camera2.p1: -0.00040139
-Camera2.p2: 0.00043137
-
-# Close/Far threshold. Baseline times.
-Stereo.ThDepth: 40.0
-Camera.bf: 39.60096
-
-# Transformation from camera 1 to camera 2 (stereo baseline = 95mm)
-Stereo.T_c1_c2: !!opencv-matrix
-  rows: 4
-  cols: 4
-  dt: f
-  data: [1.0, 0.0, 0.0, 0.0950,
-         0.0, 1.0, 0.0, 0.0,
-         0.0, 0.0, 1.0, 0.0,
-         0.0, 0.0, 0.0, 1.0]
-
-# Camera resolution
 Camera.width: 848
 Camera.height: 480
 
-# Camera frames per second 
 Camera.fps: 30
 
 # Color order of the images (0: BGR, 1: RGB. It is ignored if images are grayscale)
 Camera.RGB: 0
 
-# Transformation from body-frame (IMU) to left camera (cam0)
+# Close/Far threshold. Baseline times.
+Stereo.ThDepth: 40.0
+
+# Transformation from body-frame (IMU) to left camera (infra1)
 IMU.T_b_c1: !!opencv-matrix
    rows: 4
    cols: 4
    dt: f
-   data: [0.99996544, 0.00734233, -0.00389993, -0.0275343,
-          -0.00734522, 0.99997276, -0.00072794, -0.0030587,
-          0.00389448, 0.00075656, 0.99999213, -0.0236051,
+   data: [1.0, 0.0, 0.0, -0.005,
+          0.0, 1.0, 0.0, -0.005,
+          0.0, 0.0, 1.0, 0.0117,
           0.0, 0.0, 0.0, 1.0]
 
-# IMU noise
-IMU.NoiseGyro: 2.05e-4 # rad/s^0.5
-IMU.NoiseAcc: 2.07e-3 # m/s^1.5
-IMU.GyroWalk: 1.11e-5 # rad/s^1.5
-IMU.AccWalk: 4.13e-4 # m/s^2.5
-IMU.Frequency: 400.0
+# Do not insert keyframes when lost of visual tracking
+IMU.InsertKFsWhenLost: 0
+
+# IMU noise (ORB-SLAM3 RealSense_D435i.yaml)
+IMU.NoiseGyro: 1e-3 # rad/s^0.5
+IMU.NoiseAcc: 1e-2 # m/s^1.5
+IMU.GyroWalk: 1e-6 # rad/s^1.5
+IMU.AccWalk: 1e-4 # m/s^2.5
+IMU.Frequency: 200.0
 
 #--------------------------------------------------------------------------------------------
-# ORB Parameters
+# ORB Parameters (ORB-SLAM3 RealSense_D435i.yaml)
 #--------------------------------------------------------------------------------------------
-ORBextractor.nFeatures: 1200
+ORBextractor.nFeatures: 1250
 ORBextractor.scaleFactor: 1.2
 ORBextractor.nLevels: 8
 ORBextractor.iniThFAST: 20

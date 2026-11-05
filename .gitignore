@@ -35,3 +35,6 @@ __pycache__/
 *.bak*
 original_main.tex
 
+# ORB-SLAM3 source clone (zang09/ORB-SLAM3-STEREO-FIXED @ f8ac791). Our timing edits are
+# kept in workspace/orbslam3_ws/orbslam3_timing.patch (git apply inside the clone).
+workspace/orbslam3_ws/ORB_SLAM3/

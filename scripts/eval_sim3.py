@@ -91,33 +91,33 @@ if __name__ == '__main__':
     benchmarks = [
         ("EuRoC MH_01_easy", os.path.join(root, "datasets/MH_01_easy/gt_tum.txt"), [
             ("cuVSLAM", find_first_existing([
-                os.path.join(root, "results/euroc/cuvslam/cuvslam_tum.txt"),
-                os.path.join(root, "results/euroc/MH_01_easy/cuvslam_tum.txt"),
-                os.path.join(root, "results/euroc/cuvslam_tum.txt"),
+                os.path.join(root, "results/MH_01_easy/cuvslam/cuvslam_tum.txt"),
+                os.path.join(root, "results/MH_01_easy/MH_01_easy/cuvslam_tum.txt"),
+                os.path.join(root, "results/MH_01_easy/cuvslam_tum.txt"),
             ])),
             ("OpenVINS", find_first_existing([
-                os.path.join(root, "results/euroc/openvins/openvins_tum.txt"),
-                os.path.join(root, "results/euroc/MH_01_easy/open_vins.txt"),
-                os.path.join(root, "results/euroc/open_vins.txt"),
+                os.path.join(root, "results/MH_01_easy/openvins/openvins_tum.txt"),
+                os.path.join(root, "results/MH_01_easy/MH_01_easy/open_vins.txt"),
+                os.path.join(root, "results/MH_01_easy/open_vins.txt"),
             ])),
             ("Kimera-VIO", find_first_existing([
-                os.path.join(root, "results/euroc/kimera/kimera_tum.txt"),
-                os.path.join(root, "results/euroc/kimera.txt"),
+                os.path.join(root, "results/MH_01_easy/kimera/kimera_tum.txt"),
+                os.path.join(root, "results/MH_01_easy/kimera.txt"),
             ])),
             ("ORB-SLAM3", find_first_existing([
-                os.path.join(root, "results/euroc/orbslam3/orbslam3_tum.txt"),
-                os.path.join(root, "results/euroc/orbslam3/orbslam3_raw.txt"),
-                os.path.join(root, "results/euroc/orb_slam3.txt"),
+                os.path.join(root, "results/MH_01_easy/orbslam3/orbslam3_tum.txt"),
+                os.path.join(root, "results/MH_01_easy/orbslam3/orbslam3_raw.txt"),
+                os.path.join(root, "results/MH_01_easy/orb_slam3.txt"),
             ])),
             ("ORB-SLAM3 KLT", find_first_existing([
-                os.path.join(root, "results/euroc/orbslam3_klt/orbslam3_klt_tum.txt"),
+                os.path.join(root, "results/MH_01_easy/orbslam3_klt/orbslam3_klt_tum.txt"),
                 os.path.join(root, "results/orbslam3_klt/klt_trajectory.txt"),
             ])),
         ]),
         ("EuRoC V1_03_difficult", os.path.join(root, "datasets/V1_03_difficult/gt_tum.txt"), [
-            ("cuVSLAM", os.path.join(root, "results/euroc/V1_03_difficult/cuvslam/cuvslam_tum.txt")),
-            ("OpenVINS", os.path.join(root, "results/euroc/V1_03_difficult/openvins/openvins_tum.txt")),
-            ("Kimera-VIO", os.path.join(root, "results/euroc/V1_03_difficult/kimera/kimera_tum.txt")),
+            ("cuVSLAM", os.path.join(root, "results/V1_03_difficult/cuvslam/cuvslam_tum.txt")),
+            ("OpenVINS", os.path.join(root, "results/V1_03_difficult/openvins/openvins_tum.txt")),
+            ("Kimera-VIO", os.path.join(root, "results/V1_03_difficult/kimera/kimera_tum.txt")),
         ])
     ]
     for dname, gt_path, algos in benchmarks:
