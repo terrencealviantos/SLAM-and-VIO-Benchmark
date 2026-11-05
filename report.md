@@ -478,6 +478,4 @@ Run with `./run_benchmark.sh openvins V1_03_difficult` and evaluated with
 2. cuVSLAM: which rectification route to use (section 2.2)?
 3. Remaining runs: ORB-SLAM3-KLT (needs timing instrumentation); OpenVINS, Kimera and cuVSLAM
    on Suedhoehe (they need the same D435i calibration).
-4. More datasets: EuRoC **V1_03_difficult** is already downloaded (`datasets/V1_03_difficult`,
-   with ground truth). `run_benchmark.sh` already supports it for OpenVINS. It is the
-   quickest way to get a second dataset with accurate ground truth.
+4. ~~More datasets~~: done, EuRoC V1_03_difficult has been run for all four algorithms (section 3.8).
